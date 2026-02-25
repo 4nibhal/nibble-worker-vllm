@@ -156,26 +156,27 @@ The way this works is that the first request will have a batch size of `DEFAULT_
 | `DISABLE_LOGGING_REQUEST`   | False   | `bool`  | Disable logging requests.                                                                                                                              |
 | `MAX_LOG_LEN`               | None    | `int`   | Max number of prompt characters or prompt ID numbers being printed in log.                                                                             |
 
-## VLLM_RUNPOD_ Prefix: Pass Any Engine Arg
+## UPPERCASED env vars: Pass any engine arg
 
-Any vLLM `AsyncEngineArgs` field can be set via an environment variable using the `VLLM_RUNPOD_` prefix. The suffix maps directly to the field name (case-insensitive, underscores preserved).
+Any vLLM `AsyncEngineArgs` field can be set via an environment variable using the **UPPERCASED** field name (the same names vLLM uses). The worker auto-discovers all fields from env — no prefix.
 
-**Format:** `VLLM_RUNPOD_<ARG_NAME>=<value>`
+**Format:** `<FIELD_NAME_UPPERCASED>=<value>` (e.g. `MAX_MODEL_LEN=4096`)
 
 **Examples:**
 
-| Environment Variable                  | vLLM Engine Arg            | Value Example |
-| ------------------------------------- | -------------------------- | ------------- |
-| `VLLM_RUNPOD_MAX_MODEL_LEN`           | `max_model_len`            | `4096`        |
-| `VLLM_RUNPOD_ENFORCE_EAGER`           | `enforce_eager`            | `true`        |
-| `VLLM_RUNPOD_ENABLE_CHUNKED_PREFILL`  | `enable_chunked_prefill`   | `true`        |
-| `VLLM_RUNPOD_NUM_SCHEDULER_STEPS`     | `num_scheduler_steps`      | `8`           |
-| `VLLM_RUNPOD_TOKENIZER_POOL_SIZE`     | `tokenizer_pool_size`      | `4`           |
+| Environment Variable     | vLLM Engine Arg          | Value Example |
+| ------------------------ | ------------------------ | ------------- |
+| `MAX_MODEL_LEN`          | `max_model_len`          | `4096`        |
+| `ENFORCE_EAGER`          | `enforce_eager`          | `true`        |
+| `ENABLE_CHUNKED_PREFILL` | `enable_chunked_prefill` | `true`        |
+| `NUM_SCHEDULER_STEPS`    | `num_scheduler_steps`    | `8`           |
+| `TOKENIZER_POOL_SIZE`    | `tokenizer_pool_size`   | `4`           |
+
+**Backward-compat aliases:** `MODEL_NAME` → `model`, `TOKENIZER_NAME` → `tokenizer`, `MAX_CONTEXT_LEN_TO_CAPTURE` → `max_seq_len_to_capture`, `MODEL_REVISION` → `revision`.
 
 **Notes:**
 - Only valid `AsyncEngineArgs` fields are applied. Unknown keys are silently ignored.
-- Values are automatically cast to the correct type (`int`, `float`, `bool`, `str`, or JSON for `dict`/`list`).
-- `VLLM_RUNPOD_` overrides are applied **after** all other worker env vars, so they take precedence.
+- Values are automatically cast to the correct type (`int`, `float`, `bool`, `str`, or JSON for `dict`/`list`/`tuple`).
 - For a full list of available engine args, see the [vLLM AsyncEngineArgs documentation](https://docs.vllm.ai/en/latest/serving/engine_args.html).
 
 ## Docker Build Arguments
