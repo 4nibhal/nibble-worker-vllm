@@ -177,7 +177,7 @@ Any vLLM `AsyncEngineArgs` field can be set via an environment variable using th
 **Notes:**
 - Only valid `AsyncEngineArgs` fields are applied. Unknown keys are silently ignored.
 - Values are automatically cast to the correct type (`int`, `float`, `bool`, `str`, or JSON for `dict`/`list`/`tuple`).
-- For a full list of available engine args, see the [vLLM AsyncEngineArgs documentation](https://docs.vllm.ai/en/latest/serving/engine_args.html).
+- For a full list of available engine args, see the [vLLM AsyncEngineArgs documentation](https://docs.vllm.ai/en/latest/configuration/engine_args/).
 
 ## Docker Build Arguments
 
