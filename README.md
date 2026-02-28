@@ -6,6 +6,8 @@ Deploy OpenAI-Compatible Blazing-Fast LLM Endpoints powered by the [vLLM](https:
 
 </div>
 
+[![Runpod](https://api.runpod.io/badge/4nibhal/nibble-worker-vllm)](https://console.runpod.io/hub/4nibhal/nibble-worker-vllm)
+
 ## Table of Contents
 
 - [Setting up the Serverless Worker](#setting-up-the-serverless-worker)
