@@ -28,9 +28,20 @@ jobs:
       - name: Check for new package version and update
         run: |
           echo "Fetching the current runpod version from requirements.txt..."
-          
-          # Get current version, allowing both == and ~= in the search pattern
-          current_version=$(grep -oP 'runpod[~=]{1,2}\K[^"]+' ./builder/requirements.txt)
+
+          # Accept lines like: runpod, runpod==x.y.z, runpod~=x.y.z
+          current_line=$(grep -E '^runpod([~=]=[^[:space:]]+)?$' ./builder/requirements.txt || true)
+          if [ -z "$current_line" ]; then
+              echo "No managed runpod dependency line found in builder/requirements.txt; skipping updater."
+              exit 0
+          fi
+
+          if [[ "$current_line" == "runpod" ]]; then
+              echo "runpod dependency is intentionally unpinned; skipping auto-updater."
+              exit 0
+          fi
+
+          current_version=$(echo "$current_line" | grep -oP 'runpod(?:==|~=)\K[^[:space:]]+')
           echo "Current version: $current_version"
 
           # Extract major and minor from current version
@@ -61,8 +72,8 @@ jobs:
 
           echo "New major/minor detected ($new_major_minor). Updating requirements.txt..."
 
-          # Update requirements.txt, preserving the existing constraint type (~= or ==)
-          sed -i "s/runpod[~=][^ ]*/runpod~=$new_version/" ./builder/requirements.txt
+          # Update requirements.txt using ~= pin strategy
+          sed -i -E "s/^runpod(?:==|~=)[^[:space:]]*$/runpod~=$new_version/" ./builder/requirements.txt
           echo "requirements.txt has been updated."
 
       - name: Create Pull Request

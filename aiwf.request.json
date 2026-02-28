@@ -1,23 +1,25 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0003",
-  "objective": "Harden fork release CI so Docker Hub is optional and release runs stay green without registry credentials or remote pushes.",
-  "scope": "Limit changes to .github/workflows/release.yml and this request record: remove Docker Hub login dependency, run docker bake in build-only mode, keep deterministic version derivation, and preserve fork-only behavior with no upstream writes.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0004",
+  "objective": "Restore runtime compatibility on hosts with older NVIDIA drivers and stop false-failing dependency updater CI runs.",
+  "scope": "Update Dockerfile CUDA/runtime wheel targets to a broader-compatible baseline and harden .github/workflows/CI-runpod_dep.yml so unpinned runpod dependencies do not fail the workflow.",
   "risk_tier": "T1-medium",
   "acceptance_criteria": [
-    "Release workflow no longer requires DOCKERHUB_USERNAME or DOCKERHUB_TOKEN.",
-    "release.yml does not execute docker/login-action for Docker Hub.",
-    "docker/bake-action executes with push disabled (build validation only).",
-    "Release version is derived deterministically from workflow input or tag and rejected when format is invalid.",
-    "No new upstream remotes, cross-repo writes, or additional secrets are introduced."
+    "Dockerfile no longer requires CUDA 12.9 host-driver compatibility at container start.",
+    "vLLM install path uses CUDA 12.8 wheel index to match the downgraded runtime base image.",
+    "CI-runpod_dep workflow exits cleanly when runpod is unpinned or absent instead of failing.",
+    "Dependency updater still updates managed runpod pins when a newer major.minor is detected.",
+    "No upstream interactions or new secret requirements are introduced."
   ],
   "tests_expected": [
+    "docker buildx bake --print",
     "python -m json.tool aiwf.request.json >/dev/null",
-    "Review workflow diff to verify docker/login-action removal and push: false in docker/bake-action",
-    "Review workflow permissions to verify least-privilege contents: read"
+    "Review CI-runpod_dep script logic for unpinned runpod skip path",
+    "Run CI | Update runpod package version via workflow_dispatch and verify success",
+    "Run container startup test on target host to confirm CUDA requirement error is resolved"
   ],
-  "rollback_plan": "Revert only the release workflow and request metadata changes to restore prior Docker Hub login/push behavior; no data migration or state cleanup is required.",
-  "deploy_plan": "Apply and validate in this fork only; use workflow_dispatch or tag trigger in this fork to confirm build-only release path before any future registry strategy changes.",
-  "threat_model": "Primary risks are accidental registry publication and over-scoped GITHUB_TOKEN permissions; mitigated by removing Docker Hub login, enforcing build-only bake (push disabled), constraining permissions to contents: read, and validating deterministic version format before build.",
+  "rollback_plan": "Revert Dockerfile CUDA/wheel changes and CI-runpod_dep script updates to restore previous runtime target and updater behavior.",
+  "deploy_plan": "Apply and validate only in this fork, then verify with fork-local CI and a runtime smoke test on the target GPU driver environment.",
+  "threat_model": "Primary risks are runtime incompatibility from CUDA baseline mismatch and CI noise from brittle parser logic; mitigated by lowering the CUDA requirement baseline and making updater parsing explicit with safe skip conditions.",
   "ambiguities": []
 }
