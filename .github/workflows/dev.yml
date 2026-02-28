@@ -5,6 +5,10 @@ on:
     branches:
       - "**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -13,7 +17,7 @@ jobs:
     runs-on: [blacksmith-8vcpu-ubuntu-2204, linux]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Clear space to remove unused folders
         run: |
@@ -41,11 +45,11 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "DOCKERHUB_REPO=${{ vars.DOCKERHUB_REPO || 'runpod' }}" >> $GITHUB_ENV
+          echo "DOCKERHUB_REPO=${{ vars.DOCKERHUB_REPO || github.repository_owner }}" >> $GITHUB_ENV
           echo "DOCKERHUB_IMG=${{ vars.DOCKERHUB_IMG || 'worker-v1-vllm' }}" >> $GITHUB_ENV
           echo "HUGGINGFACE_ACCESS_TOKEN=${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}" >> $GITHUB_ENV
           # Convert branch name to safe docker tag (replace / with -)
-          BRANCH_NAME="${GITHUB_REF##refs/heads/}"
+          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
           SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g' | sed 's/--*/-/g')
           echo "RELEASE_VERSION=dev-${SAFE_BRANCH_NAME}" >> $GITHUB_ENV
 

@@ -12,7 +12,7 @@
    git push origin feature/your-feature-name
    ```
 
-   - Creates pull request → triggers dev build: `runpod/worker-v1-vllm:dev-refs-pull-214-merge`
+   - Creates pull request -> triggers dev build with fork-safe tag format: `<repository_owner>/worker-v1-vllm:dev-<safe-branch>`
 
 2. **Main Branch**
    ```bash
@@ -26,7 +26,7 @@
 
 **Method 1: GitHub UI (Recommended)**
 
-1. Go to [Releases](https://github.com/runpod-workers/worker-vllm/releases)
+1. Go to your fork's **Releases** page.
 2. Click **"Create a new release"**
 3. **Tag version**: `v2.8.0` (with "v" prefix, semantic versioning)
 4. **Target**: `main` branch
@@ -45,7 +45,7 @@ git push origin v2.8.0
 ### What Happens Automatically
 
 ✅ **GitHub Release** created (if using Method 1)  
-✅ **Docker Image** built and pushed: `runpod/worker-v1-vllm:v2.8.0`  
+✅ **Docker Image** built and pushed: `<repository_owner>/worker-v1-vllm:v2.8.0` (or configured `DOCKERHUB_REPO`/`DOCKERHUB_IMG`)  
 ✅ **Documentation** updated with new version references
 
 ## 📋 Version Format
@@ -74,6 +74,6 @@ See [README.md](../README.md) for full list of supported environment variables.
 
 ## 🔧 CI/CD Workflows
 
-- **Dev builds**: All pull requests → `dev-refs-pull-<PR#>-merge` images
+- **Dev builds**: Pull requests -> `dev-<safe-branch>` images
 - **Release builds**: Git tags → versioned images + GitHub releases
 - **Manual triggers**: Available in GitHub Actions for emergency releases
