@@ -1,21 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0002",
-  "objective": "Make this fork pass RunPod Hub serverless listing requirements while keeping fork-only governance and secure defaults.",
-  "scope": "Add required .runpod/tests.json, keep serverless handler discoverability intact, add fork badge to root README, and preserve no-secret test config for safe public listing metadata.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0003",
+  "objective": "Ensure RunPod Hub detects a canonical serverless handler and preserve secure fork runtime behavior.",
+  "scope": "Add a root-level handler.py compatible with RunPod handler conventions, route Docker CMD through that entrypoint, and keep the existing src runtime modules unchanged.",
   "risk_tier": "T1-medium",
   "acceptance_criteria": [
-    "File .runpod/tests.json exists with valid JSON schema-compatible test entries and non-secret environment values.",
-    "Legacy path .runpod/tests_json is removed to avoid Hub validation misses caused by wrong filename.",
-    "Root README.md contains the fork badge URL for 4nibhal/nibble-worker-vllm.",
-    "src/handler.py remains the active RunPod serverless entrypoint for Docker CMD execution."
+    "Root file handler.py defines a RunPod-compatible handler function and invokes runpod.serverless.start.",
+    "Dockerfile copies handler.py and uses it as container CMD entrypoint.",
+    "Serverless startup behavior remains equivalent, including CUDA-failure hard exit and aggregate streaming.",
+    "No secrets are added to repository metadata or test fixtures."
   ],
   "tests_expected": [
+    "python -m py_compile handler.py",
     "python -m json.tool .runpod/tests.json",
-    "python -m py_compile src/handler.py"
+    "python -m py_compile src/handler.py",
+    "docker buildx bake --print"
   ],
-  "rollback_plan": "Revert the commit that adds .runpod/tests.json, removes .runpod/tests_json, and updates README badge + request contract.",
-  "deploy_plan": "Apply and validate only in this fork, then create a GitHub release in this fork so RunPod Hub can ingest the listing changes.",
-  "threat_model": "Primary risks are secret leakage in test metadata and mis-detected serverless readiness from incorrect filenames; mitigated by explicit non-secret env examples and canonical .runpod/tests.json path.",
+  "rollback_plan": "Revert the commit that adds root handler.py and Dockerfile CMD changes to restore /src/handler.py startup path.",
+  "deploy_plan": "Apply and validate only in this fork, push to origin/main, and publish a tagged release in this fork.",
+  "threat_model": "Primary risk is runtime drift caused by entrypoint changes; mitigated by preserving existing handler logic, maintaining CUDA failure shutdown behavior, and validating syntax plus build graph before release.",
   "ambiguities": []
 }

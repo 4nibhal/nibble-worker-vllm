@@ -52,6 +52,7 @@ RUN if [ "${VLLM_NIGHTLY}" = "true" ]; then \
 fi
 
 COPY src /src
+COPY handler.py /handler.py
 RUN --mount=type=secret,id=HF_TOKEN,required=false \
     if [ -f /run/secrets/HF_TOKEN ]; then \
     export HF_TOKEN=$(cat /run/secrets/HF_TOKEN); \
@@ -61,4 +62,4 @@ RUN --mount=type=secret,id=HF_TOKEN,required=false \
     fi
 
 # Start the handler
-CMD ["python3", "/src/handler.py"]
+CMD ["python3", "/handler.py"]
