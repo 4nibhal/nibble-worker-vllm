@@ -15,3 +15,9 @@ vllm-base/vllm-*
 .openai/
 .gemini/
 # <<< aiwf-runtime:end
+
+# Local JS/Bun install artifacts
+linter/node_modules/
+linter/.bun/
+linter/.cache/
+linter/coverage/
