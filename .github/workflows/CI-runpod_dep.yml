@@ -9,13 +9,21 @@ on:
 
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   check_dep:
     runs-on: ubuntu-latest
     name: Check python requirements file and update
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Check for new package version and update
         run: |
@@ -58,7 +66,7 @@ jobs:
           echo "requirements.txt has been updated."
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update runpod package version

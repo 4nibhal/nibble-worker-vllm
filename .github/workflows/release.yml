@@ -11,15 +11,19 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write # Required for creating GitHub releases
 
 jobs:
   release:
-    runs-on: [blacksmith-8vcpu-ubuntu-2204, linux]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Clear space to remove unused folders
         run: |
@@ -40,14 +44,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: blacksmith docker layer cache
-        uses: useblacksmith/build-push-action@v1
-        with:
-          setup-only: true
-
       - name: Set environment variables
         run: |
-          echo "DOCKERHUB_REPO=${{ vars.DOCKERHUB_REPO || 'runpod' }}" >> $GITHUB_ENV
+          echo "DOCKERHUB_REPO=${{ vars.DOCKERHUB_REPO || github.repository_owner }}" >> $GITHUB_ENV
           echo "DOCKERHUB_IMG=${{ vars.DOCKERHUB_IMG || 'worker-v1-vllm' }}" >> $GITHUB_ENV
           echo "HUGGINGFACE_ACCESS_TOKEN=${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}" >> $GITHUB_ENV
 

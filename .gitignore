@@ -5,3 +5,19 @@ runpod.toml
 test/*
 vllm-base/vllm-*
 .DS_Store
+
+# >>> aiwf-runtime:start
+# Managed by ai-workflows setup.sh. Do not edit manually.
+.opencode/
+.aiwf/
+.claude/
+.cursor/
+.openai/
+.gemini/
+# <<< aiwf-runtime:end
+
+# Local JS/Bun install artifacts
+linter/node_modules/
+linter/.bun/
+linter/.cache/
+linter/coverage/
