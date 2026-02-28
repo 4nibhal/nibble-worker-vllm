@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0001",
+  "objective": "Expand fork governance with agentic controls for safe upstream parity, runtime compatibility checks, and CI/release hardening without modifying ai-workflow/.",
+  "scope": "Create .opencode/skills/fork-sync-guard/SKILL.md, add .opencode/agent/runpod-runtime-guardian.md and .opencode/agent/ci-release-engineer.md, register them in root AGENTS.md, and align this request contract for agentic bootstrap expansion.",
+  "risk_tier": "T1-medium",
+  "acceptance_criteria": [
+    "Skill file .opencode/skills/fork-sync-guard/SKILL.md exists with triggers, metadata.auto_invoke, and explicit prohibition on direct upstream targeting from this repo.",
+    "Sub-agent files .opencode/agent/runpod-runtime-guardian.md and .opencode/agent/ci-release-engineer.md exist with scope, compatibility/hardening protocols, rollback awareness, and minimal safe edit guidance.",
+    "Root AGENTS.md includes @skill/fork-sync-guard in Capability Graph, an Auto-invoke mapping for upstream parity/sync tasks, and specialized sub-agent rows for both new agents.",
+    "aiwf.request.json remains internally consistent with objective, scope, validation commands, and rollback expectations."
+  ],
+  "tests_expected": [
+    "python ai-workflow/scripts/aiwf/validate_config.py --config aiwf.config.json",
+    "python ai-workflow/scripts/aiwf/validate_request_contract.py --request aiwf.request.json --schema ai-workflow/aiwf.request.schema.json"
+  ],
+  "rollback_plan": "Revert commit containing fork-sync skill, new sub-agents, AGENTS.md registration, and request-contract updates in this fork.",
+  "deploy_plan": "Apply and validate in this fork only; do not open direct upstream automation against runpod-workers/worker-vllm from this repository.",
+  "threat_model": "Primary risk is accidental upstream targeting or unsafe CI/runtime drift; mitigated by explicit fork-isolation policy, capability routing, and rollback-aware sub-agent contracts.",
+  "ambiguities": []
+}

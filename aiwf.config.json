@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "setup_mode": "bootstrap_first",
+  "repo_intent": "consumer",
+  "governance_mode": "delegated",
+  "interaction_mode": "conversation_guarded",
+  "capability_profile": "infra",
+  "platforms": [
+    "opencode",
+    "claude",
+    "cursor",
+    "github"
+  ],
+  "runtime_policy": "track_compiled",
+  "ownership": {
+    "default": "managed",
+    "rules": [
+      {
+        "path": "AGENTS.md",
+        "mode": "protected"
+      },
+      {
+        "path": "aiwf.config.json",
+        "mode": "protected"
+      },
+      {
+        "path": "aiwf.request.json",
+        "mode": "protected"
+      },
+      {
+        "path": "README.md",
+        "mode": "user-owned"
+      }
+    ]
+  },
+  "exceptions": {
+    "ledger": "aiwf.exceptions.json"
+  },
+  "request_contract": {
+    "schema": "ai-workflow/aiwf.request.schema.json",
+    "request_file": "aiwf.request.json"
+  },
+  "opencode": {
+    "agents": {
+      "mode": "curated",
+      "include": [],
+      "exclude": []
+    }
+  }
+}
