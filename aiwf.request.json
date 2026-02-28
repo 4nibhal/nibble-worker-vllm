@@ -1,23 +1,23 @@
 {
   "version": 1,
   "request_id": "REQ-NIBBLE-WORKER-VLLM-0003",
-  "objective": "Ensure RunPod Hub detects a canonical serverless handler and preserve secure fork runtime behavior.",
-  "scope": "Add a root-level handler.py compatible with RunPod handler conventions, route Docker CMD through that entrypoint, and keep the existing src runtime modules unchanged.",
+  "objective": "Harden fork release CI so Docker Hub is optional and release runs stay green without registry credentials or remote pushes.",
+  "scope": "Limit changes to .github/workflows/release.yml and this request record: remove Docker Hub login dependency, run docker bake in build-only mode, keep deterministic version derivation, and preserve fork-only behavior with no upstream writes.",
   "risk_tier": "T1-medium",
   "acceptance_criteria": [
-    "Root file handler.py defines a RunPod-compatible handler function and invokes runpod.serverless.start.",
-    "Dockerfile copies handler.py and uses it as container CMD entrypoint.",
-    "Serverless startup behavior remains equivalent, including CUDA-failure hard exit and aggregate streaming.",
-    "No secrets are added to repository metadata or test fixtures."
+    "Release workflow no longer requires DOCKERHUB_USERNAME or DOCKERHUB_TOKEN.",
+    "release.yml does not execute docker/login-action for Docker Hub.",
+    "docker/bake-action executes with push disabled (build validation only).",
+    "Release version is derived deterministically from workflow input or tag and rejected when format is invalid.",
+    "No new upstream remotes, cross-repo writes, or additional secrets are introduced."
   ],
   "tests_expected": [
-    "python -m py_compile handler.py",
-    "python -m json.tool .runpod/tests.json",
-    "python -m py_compile src/handler.py",
-    "docker buildx bake --print"
+    "python -m json.tool aiwf.request.json >/dev/null",
+    "Review workflow diff to verify docker/login-action removal and push: false in docker/bake-action",
+    "Review workflow permissions to verify least-privilege contents: read"
   ],
-  "rollback_plan": "Revert the commit that adds root handler.py and Dockerfile CMD changes to restore /src/handler.py startup path.",
-  "deploy_plan": "Apply and validate only in this fork, push to origin/main, and publish a tagged release in this fork.",
-  "threat_model": "Primary risk is runtime drift caused by entrypoint changes; mitigated by preserving existing handler logic, maintaining CUDA failure shutdown behavior, and validating syntax plus build graph before release.",
+  "rollback_plan": "Revert only the release workflow and request metadata changes to restore prior Docker Hub login/push behavior; no data migration or state cleanup is required.",
+  "deploy_plan": "Apply and validate in this fork only; use workflow_dispatch or tag trigger in this fork to confirm build-only release path before any future registry strategy changes.",
+  "threat_model": "Primary risks are accidental registry publication and over-scoped GITHUB_TOKEN permissions; mitigated by removing Docker Hub login, enforcing build-only bake (push disabled), constraining permissions to contents: read, and validating deterministic version format before build.",
   "ambiguities": []
 }
