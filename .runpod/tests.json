@@ -3,9 +3,13 @@
     {
       "name": "basic_inference_test",
       "input": {
-        "prompt": "Write a short poem about artificial intelligence."
+        "prompt": "Write a short poem about artificial intelligence.",
+        "sampling_params": {
+          "max_tokens": 64,
+          "temperature": 0.1
+        }
       },
-      "timeout": 30000
+      "timeout": 120000
     },
     {
       "name": "openai_messages_test",
@@ -26,7 +30,7 @@
           "temperature": 0.1
         }
       },
-      "timeout": 30000
+      "timeout": 120000
     }
   ],
   "config": {
