@@ -5,9 +5,17 @@ RUN apt-get update -y \
 
 RUN ldconfig /usr/local/cuda-12.8/compat/
 
-# Install vLLM with FlashInfer using CUDA 12.8 wheels for broader driver compatibility
+ARG VLLM_NIGHTLY="true"
+
+# Install vLLM (nightly default-on; stable path kept for rollback)
 RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install "vllm[flashinfer]==0.16.0" --extra-index-url https://download.pytorch.org/whl/cu128
+    if [ "${VLLM_NIGHTLY}" = "true" ]; then \
+        python3 -m pip install -U vllm --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly && \
+        apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
+        python3 -m pip install git+https://github.com/huggingface/transformers.git; \
+    else \
+        python3 -m pip install "vllm[flashinfer]==0.16.0" --extra-index-url https://download.pytorch.org/whl/cu128; \
+    fi
 
 
 
@@ -23,7 +31,6 @@ ARG BASE_PATH="/runpod-volume"
 ARG QUANTIZATION=""
 ARG MODEL_REVISION=""
 ARG TOKENIZER_REVISION=""
-ARG VLLM_NIGHTLY="false"
 
 ENV MODEL_NAME=$MODEL_NAME \
     MODEL_REVISION=$MODEL_REVISION \
@@ -44,12 +51,6 @@ ENV MODEL_NAME=$MODEL_NAME \
     RAYON_NUM_THREADS=4
 
 ENV PYTHONPATH="/:/vllm-workspace"
-
-RUN if [ "${VLLM_NIGHTLY}" = "true" ]; then \
-    pip install -U vllm --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly && \
-    apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
-    pip install git+https://github.com/huggingface/transformers.git; \
-fi
 
 COPY src /src
 COPY handler.py /handler.py

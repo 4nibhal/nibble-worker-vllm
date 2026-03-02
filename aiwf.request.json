@@ -1,25 +1,25 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0004",
-  "objective": "Restore runtime compatibility on hosts with older NVIDIA drivers and stop false-failing dependency updater CI runs.",
-  "scope": "Update Dockerfile CUDA/runtime wheel targets to a broader-compatible baseline and harden .github/workflows/CI-runpod_dep.yml so unpinned runpod dependencies do not fail the workflow.",
-  "risk_tier": "T1-medium",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0005",
+  "objective": "Default to the vLLM nightly install path for Qwen 3.5 support while preserving a reversible stable fallback, and reduce noisy optional environment warnings in RunPod test configuration.",
+  "scope": "Apply minimal fork-local runtime/config updates in Dockerfile, .runpod/tests.json, and aiwf.request.json only: set VLLM_NIGHTLY default true with coherent single-path install logic, define explicit optional env defaults used by RunPod tests (without HF_TOKEN), and document compatibility/rollback/deploy safeguards for RunPod + vLLM.",
+  "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Dockerfile no longer requires CUDA 12.9 host-driver compatibility at container start.",
-    "vLLM install path uses CUDA 12.8 wheel index to match the downgraded runtime base image.",
-    "CI-runpod_dep workflow exits cleanly when runpod is unpinned or absent instead of failing.",
-    "Dependency updater still updates managed runpod pins when a newer major.minor is detected.",
-    "No upstream interactions or new secret requirements are introduced."
+    "Dockerfile defaults VLLM_NIGHTLY to true and keeps existing CUDA 12.8 runtime baseline unchanged.",
+    "Dockerfile uses a single coherent install branch (nightly or stable) to avoid contradictory dual-install behavior during image builds.",
+    ".runpod/tests.json config.env includes explicit defaults for HEALTH_CHECK_INIT_FAST_MODE, HEALTH_CHECK_INTERVAL_SECONDS, SCALING_MIN_QUEUE_TIME_MS, SCALING_THRESHOLD_BUFFER_MS, OTEL_EXPORTER_OTLP_ENDPOINT, POSTHOG_API_KEY, RUNPOD_GQL_API_URL, and GIN_MODE.",
+    ".runpod/tests.json does not introduce HF_TOKEN or any new secret requirement.",
+    "All edits remain fork-local, minimal, and reversible via documented rollback actions."
   ],
   "tests_expected": [
-    "docker buildx bake --print",
+    "python -m json.tool .runpod/tests.json >/dev/null",
     "python -m json.tool aiwf.request.json >/dev/null",
-    "Review CI-runpod_dep script logic for unpinned runpod skip path",
-    "Run CI | Update runpod package version via workflow_dispatch and verify success",
-    "Run container startup test on target host to confirm CUDA requirement error is resolved"
+    "docker buildx bake --print",
+    "git diff -- Dockerfile .runpod/tests.json aiwf.request.json",
+    "Run a fork-local RunPod test job to verify optional env warning noise is reduced without requiring HF_TOKEN"
   ],
-  "rollback_plan": "Revert Dockerfile CUDA/wheel changes and CI-runpod_dep script updates to restore previous runtime target and updater behavior.",
-  "deploy_plan": "Apply and validate only in this fork, then verify with fork-local CI and a runtime smoke test on the target GPU driver environment.",
-  "threat_model": "Primary risks are runtime incompatibility from CUDA baseline mismatch and CI noise from brittle parser logic; mitigated by lowering the CUDA requirement baseline and making updater parsing explicit with safe skip conditions.",
+  "rollback_plan": "Immediate rollback: set Dockerfile ARG VLLM_NIGHTLY back to false and restore prior two-step install flow if nightly regressions appear; remove newly added optional env defaults from .runpod/tests.json to return to prior behavior; revert this change set in one fork-local commit to restore previous runtime/test configuration. No upstream operations required.",
+  "deploy_plan": "Build and validate in this fork only. Run JSON validation and docker buildx bake print checks before merge, then run a fork-local RunPod smoke test using the existing test suite to verify startup and inference behavior under the nightly default path.",
+  "threat_model": "Key risks are nightly package instability, dependency drift from pre-release wheels, and subtle runtime behavior changes from explicit env defaults. Mitigations: keep CUDA base image unchanged, preserve a stable fallback branch controlled by VLLM_NIGHTLY, avoid introducing new secrets (no HF_TOKEN), and require fast fork-local rollback through a minimal three-file revert.",
   "ambiguities": []
 }

@@ -40,6 +40,38 @@
       {
         "key": "MODEL_NAME",
         "value": "HuggingFaceTB/SmolLM2-135M-Instruct"
+      },
+      {
+        "key": "HEALTH_CHECK_INIT_FAST_MODE",
+        "value": "false"
+      },
+      {
+        "key": "HEALTH_CHECK_INTERVAL_SECONDS",
+        "value": "30"
+      },
+      {
+        "key": "SCALING_MIN_QUEUE_TIME_MS",
+        "value": "0"
+      },
+      {
+        "key": "SCALING_THRESHOLD_BUFFER_MS",
+        "value": "0"
+      },
+      {
+        "key": "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "value": ""
+      },
+      {
+        "key": "POSTHOG_API_KEY",
+        "value": ""
+      },
+      {
+        "key": "RUNPOD_GQL_API_URL",
+        "value": "https://api.runpod.io/graphql"
+      },
+      {
+        "key": "GIN_MODE",
+        "value": "release"
       }
     ],
     "allowedCudaVersions": ["12.9", "12.8", "12.7", "12.6", "12.5"]
