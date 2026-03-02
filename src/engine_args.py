@@ -57,10 +57,10 @@ DEFAULT_ARGS = {
     "guided_decoding_backend": "outlines",
     "spec_decoding_acceptance_method": "rejection_sampler",
     "stream_interval": 1,
-
 }
 
 SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT = 8192
+SAFE_MAX_MODEL_LEN_CAP_DEFAULT = 32768
 LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
 
 
@@ -72,6 +72,24 @@ def _get_safe_max_num_batched_tokens_cap() -> int:
     raw_cap = os.getenv("SAFE_MAX_NUM_BATCHED_TOKENS_CAP")
     if raw_cap is None:
         return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
+
+
+def _get_safe_max_model_len_cap() -> int:
+    raw_cap = os.getenv("SAFE_MAX_MODEL_LEN_CAP")
+    if raw_cap is None:
+        return SAFE_MAX_MODEL_LEN_CAP_DEFAULT
+    try:
+        cap = int(raw_cap)
+        if cap <= 0:
+            raise ValueError("cap must be positive")
+        return cap
+    except ValueError:
+        logging.warning(
+            "Invalid SAFE_MAX_MODEL_LEN_CAP=%r; using default %d",
+            raw_cap,
+            SAFE_MAX_MODEL_LEN_CAP_DEFAULT,
+        )
+        return SAFE_MAX_MODEL_LEN_CAP_DEFAULT
     try:
         cap = int(raw_cap)
         if cap <= 0:
@@ -169,9 +187,7 @@ def _get_args_from_env_auto_discover() -> dict:
                 value, field_name, field.type
             )
         except (ValueError, TypeError, json.JSONDecodeError) as e:
-            logging.warning(
-                "Skip env %s=%r: %s", env_key, value, e
-            )
+            logging.warning("Skip env %s=%r: %s", env_key, value, e)
     return args
 
 
@@ -189,6 +205,7 @@ def _apply_env_aliases(args: dict) -> None:
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             logging.warning("Skip env alias %s=%r: %s", alias, value, e)
 
+
 def get_speculative_config():
     """Build speculative decoding configuration from environment variables.
 
@@ -197,7 +214,7 @@ def get_speculative_config():
     2. Individual env vars for common settings
     """
     # Option 1: Full JSON configuration
-    spec_config_json = os.getenv('SPECULATIVE_CONFIG')
+    spec_config_json = os.getenv("SPECULATIVE_CONFIG")
     if spec_config_json:
         try:
             config = json.loads(spec_config_json)
@@ -208,11 +225,11 @@ def get_speculative_config():
             return None
 
     # Option 2: Build config from individual environment variables
-    spec_method = os.getenv('SPECULATIVE_METHOD')
-    spec_model = os.getenv('SPECULATIVE_MODEL')
-    _num_spec_tokens = os.getenv('NUM_SPECULATIVE_TOKENS')
-    _ngram_max = os.getenv('NGRAM_PROMPT_LOOKUP_MAX')
-    _ngram_min = os.getenv('NGRAM_PROMPT_LOOKUP_MIN')
+    spec_method = os.getenv("SPECULATIVE_METHOD")
+    spec_model = os.getenv("SPECULATIVE_MODEL")
+    _num_spec_tokens = os.getenv("NUM_SPECULATIVE_TOKENS")
+    _ngram_max = os.getenv("NGRAM_PROMPT_LOOKUP_MAX")
+    _ngram_min = os.getenv("NGRAM_PROMPT_LOOKUP_MIN")
 
     # Convert numeric vars to int so '0' (hub.json default) is treated as unset
     num_spec_tokens = (int(_num_spec_tokens) or None) if _num_spec_tokens else None
@@ -226,52 +243,52 @@ def get_speculative_config():
 
     # Determine method
     if spec_method:
-        config['method'] = spec_method
+        config["method"] = spec_method
     elif ngram_max and not spec_model:
-        config['method'] = 'ngram'
+        config["method"] = "ngram"
     elif spec_model:
         model_lower = spec_model.lower()
-        if 'eagle3' in model_lower:
-            config['method'] = 'eagle3'
-        elif 'eagle' in model_lower:
-            config['method'] = 'eagle'
-        elif 'medusa' in model_lower:
-            config['method'] = 'medusa'
+        if "eagle3" in model_lower:
+            config["method"] = "eagle3"
+        elif "eagle" in model_lower:
+            config["method"] = "eagle"
+        elif "medusa" in model_lower:
+            config["method"] = "medusa"
         else:
-            config['method'] = 'draft_model'
+            config["method"] = "draft_model"
 
     if spec_model:
-        config['model'] = spec_model
+        config["model"] = spec_model
     if num_spec_tokens:
-        config['num_speculative_tokens'] = num_spec_tokens
+        config["num_speculative_tokens"] = num_spec_tokens
     if ngram_max:
-        config['prompt_lookup_max'] = ngram_max
+        config["prompt_lookup_max"] = ngram_max
     if ngram_min:
-        config['prompt_lookup_min'] = ngram_min
+        config["prompt_lookup_min"] = ngram_min
 
-    draft_tp = os.getenv('SPECULATIVE_DRAFT_TENSOR_PARALLEL_SIZE')
+    draft_tp = os.getenv("SPECULATIVE_DRAFT_TENSOR_PARALLEL_SIZE")
     if draft_tp:
-        config['draft_tensor_parallel_size'] = int(draft_tp)
+        config["draft_tensor_parallel_size"] = int(draft_tp)
 
-    spec_max_len = os.getenv('SPECULATIVE_MAX_MODEL_LEN')
+    spec_max_len = os.getenv("SPECULATIVE_MAX_MODEL_LEN")
     if spec_max_len:
-        config['max_model_len'] = int(spec_max_len)
+        config["max_model_len"] = int(spec_max_len)
 
-    disable_batch = os.getenv('SPECULATIVE_DISABLE_BY_BATCH_SIZE')
+    disable_batch = os.getenv("SPECULATIVE_DISABLE_BY_BATCH_SIZE")
     if disable_batch:
-        config['disable_by_batch_size'] = int(disable_batch)
+        config["disable_by_batch_size"] = int(disable_batch)
 
-    spec_quant = os.getenv('SPECULATIVE_QUANTIZATION')
+    spec_quant = os.getenv("SPECULATIVE_QUANTIZATION")
     if spec_quant:
-        config['quantization'] = spec_quant
+        config["quantization"] = spec_quant
 
-    spec_revision = os.getenv('SPECULATIVE_MODEL_REVISION')
+    spec_revision = os.getenv("SPECULATIVE_MODEL_REVISION")
     if spec_revision:
-        config['revision'] = spec_revision
+        config["revision"] = spec_revision
 
-    spec_eager = os.getenv('SPECULATIVE_ENFORCE_EAGER')
+    spec_eager = os.getenv("SPECULATIVE_ENFORCE_EAGER")
     if spec_eager:
-        config['enforce_eager'] = spec_eager.lower() == 'true'
+        config["enforce_eager"] = spec_eager.lower() == "true"
 
     if config:
         logging.info(f"Built speculative config from env vars: {config}")
@@ -284,12 +301,18 @@ def _resolve_max_model_len(model, trust_remote_code=False, revision=None):
     """Resolve max_model_len from the model's HuggingFace config."""
     try:
         from transformers import AutoConfig
+
         config = AutoConfig.from_pretrained(
             model,
             trust_remote_code=trust_remote_code,
             revision=revision,
         )
-        for attr in ('max_position_embeddings', 'n_positions', 'max_seq_len', 'seq_length'):
+        for attr in (
+            "max_position_embeddings",
+            "n_positions",
+            "max_seq_len",
+            "seq_length",
+        ):
             val = getattr(config, attr, None)
             if val is not None:
                 logging.info(f"Resolved max_model_len={val} from model config ({attr})")
@@ -325,13 +348,17 @@ def get_local_args():
         local_args = json.load(f)
 
     if local_args.get("MODEL_NAME") is None:
-        logging.warning("Model name not found in /local_model_args.json. There maybe was a problem when baking the model in.")
+        logging.warning(
+            "Model name not found in /local_model_args.json. There maybe was a problem when baking the model in."
+        )
 
     logging.info(f"Using baked in model with args: {local_args}")
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     os.environ["HF_HUB_OFFLINE"] = "1"
 
     return local_args
+
+
 def get_engine_args():
     # Start with worker custom defaults (only where we differ from vLLM)
     args = dict(DEFAULT_ARGS)
@@ -350,7 +377,8 @@ def get_engine_args():
     # Filter to valid engine args and drop sentinel empty values
     valid_fields = AsyncEngineArgs.__dataclass_fields__
     args = {
-        k: v for k, v in args.items()
+        k: v
+        for k, v in args.items()
         if k in valid_fields and v not in (None, "", "None")
     }
 
@@ -366,27 +394,31 @@ def get_engine_args():
 
     if args.get("load_format") == "bitsandbytes":
         args["quantization"] = args["load_format"]
-    
+
     # Set tensor parallel size and max parallel loading workers if more than 1 GPU is available
     num_gpus = device_count()
     if num_gpus > 1:
         args["tensor_parallel_size"] = num_gpus
         args["max_parallel_loading_workers"] = None
         if os.getenv("MAX_PARALLEL_LOADING_WORKERS"):
-            logging.warning("Overriding MAX_PARALLEL_LOADING_WORKERS with None because more than 1 GPU is available.")
-    
+            logging.warning(
+                "Overriding MAX_PARALLEL_LOADING_WORKERS with None because more than 1 GPU is available."
+            )
+
     # Deprecated env args backwards compatibility
     if args.get("kv_cache_dtype") == "fp8_e5m2":
         args["kv_cache_dtype"] = "fp8"
         logging.warning("Using fp8_e5m2 is deprecated. Please use fp8 instead.")
     if os.getenv("MAX_CONTEXT_LEN_TO_CAPTURE"):
         args["max_seq_len_to_capture"] = int(os.getenv("MAX_CONTEXT_LEN_TO_CAPTURE"))
-        logging.warning("Using MAX_CONTEXT_LEN_TO_CAPTURE is deprecated. Please use MAX_SEQ_LEN_TO_CAPTURE instead.")
-        
+        logging.warning(
+            "Using MAX_CONTEXT_LEN_TO_CAPTURE is deprecated. Please use MAX_SEQ_LEN_TO_CAPTURE instead."
+        )
+
     # if "gemma-2" in args.get("model", "").lower():
     #     os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
     #     logging.info("Using FLASHINFER for gemma-2 model.")
-    
+
     # Set max_num_batched_tokens to max_model_len for unlimited batching.
     # vLLM defaults max_num_batched_tokens to 2048 when None, which is too low.
 
@@ -397,12 +429,30 @@ def get_engine_args():
         args["max_num_batched_tokens"] = None
 
     max_model_len = args.get("max_model_len")
+    explicit_max_model_len = os.getenv("MAX_MODEL_LEN") not in (
+        None,
+        "",
+        "None",
+        "none",
+        "0",
+    )
     if max_model_len is None:
         max_model_len = _resolve_max_model_len(
             args.get("model"),
             trust_remote_code=args.get("trust_remote_code", False),
             revision=args.get("revision"),
         )
+
+    if max_model_len is not None and not explicit_max_model_len:
+        model_len_cap = _get_safe_max_model_len_cap()
+        if max_model_len > model_len_cap:
+            logging.info(
+                "Safety override: capped auto max_model_len from %d to %d via SAFE_MAX_MODEL_LEN_CAP",
+                max_model_len,
+                model_len_cap,
+            )
+            max_model_len = model_len_cap
+            args["max_model_len"] = model_len_cap
 
     if args.get("max_num_batched_tokens") is None and max_model_len is not None:
         cap = _get_safe_max_num_batched_tokens_cap()
@@ -433,25 +483,25 @@ def get_engine_args():
                 "Safety override: forced enable_chunked_prefill=True for large context max_model_len=%d",
                 max_model_len,
             )
-    
+
     # VLLM_ATTENTION_BACKEND is deprecated, migrate to attention_backend
-    if os.getenv('VLLM_ATTENTION_BACKEND'):
+    if os.getenv("VLLM_ATTENTION_BACKEND"):
         logging.warning(
             "VLLM_ATTENTION_BACKEND env var is deprecated. "
             "Use ATTENTION_BACKEND instead (maps to --attention-backend CLI arg)."
         )
-        if not args.get('attention_backend'):
-            args['attention_backend'] = os.getenv('VLLM_ATTENTION_BACKEND')
+        if not args.get("attention_backend"):
+            args["attention_backend"] = os.getenv("VLLM_ATTENTION_BACKEND")
 
     # DISABLE_LOG_REQUESTS is deprecated, use ENABLE_LOG_REQUESTS instead
-    if os.getenv('DISABLE_LOG_REQUESTS'):
+    if os.getenv("DISABLE_LOG_REQUESTS"):
         logging.warning(
             "DISABLE_LOG_REQUESTS env var is deprecated. "
             "Use ENABLE_LOG_REQUESTS instead (default: False)."
         )
         # Honor old behavior: if DISABLE_LOG_REQUESTS=true, don't enable logging
-        if os.getenv('DISABLE_LOG_REQUESTS', 'False').lower() == 'true':
-            args['enable_log_requests'] = False
+        if os.getenv("DISABLE_LOG_REQUESTS", "False").lower() == "true":
+            args["enable_log_requests"] = False
 
     # Add speculative decoding configuration if present
     speculative_config = get_speculative_config()
