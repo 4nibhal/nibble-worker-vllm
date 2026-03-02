@@ -72,6 +72,18 @@ def _get_safe_max_num_batched_tokens_cap() -> int:
     raw_cap = os.getenv("SAFE_MAX_NUM_BATCHED_TOKENS_CAP")
     if raw_cap is None:
         return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
+    try:
+        cap = int(raw_cap)
+        if cap <= 0:
+            raise ValueError("cap must be positive")
+        return cap
+    except ValueError:
+        logging.warning(
+            "Invalid SAFE_MAX_NUM_BATCHED_TOKENS_CAP=%r; using default %d",
+            raw_cap,
+            SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT,
+        )
+        return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
 
 
 def _get_safe_max_model_len_cap() -> int:
@@ -90,18 +102,6 @@ def _get_safe_max_model_len_cap() -> int:
             SAFE_MAX_MODEL_LEN_CAP_DEFAULT,
         )
         return SAFE_MAX_MODEL_LEN_CAP_DEFAULT
-    try:
-        cap = int(raw_cap)
-        if cap <= 0:
-            raise ValueError("cap must be positive")
-        return cap
-    except ValueError:
-        logging.warning(
-            "Invalid SAFE_MAX_NUM_BATCHED_TOKENS_CAP=%r; using default %d",
-            raw_cap,
-            SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT,
-        )
-        return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
 
 
 def _resolve_field_type(field_type: type) -> type:
@@ -443,16 +443,30 @@ def get_engine_args():
             revision=args.get("revision"),
         )
 
-    if max_model_len is not None and not explicit_max_model_len:
+    if max_model_len is not None:
         model_len_cap = _get_safe_max_model_len_cap()
         if max_model_len > model_len_cap:
-            logging.info(
-                "Safety override: capped auto max_model_len from %d to %d via SAFE_MAX_MODEL_LEN_CAP",
-                max_model_len,
-                model_len_cap,
-            )
-            max_model_len = model_len_cap
-            args["max_model_len"] = model_len_cap
+            if _env_is_true("ALLOW_UNSAFE_MAX_MODEL_LEN"):
+                logging.warning(
+                    "Unsafe override allowed: keeping max_model_len=%d above SAFE_MAX_MODEL_LEN_CAP=%d",
+                    max_model_len,
+                    model_len_cap,
+                )
+            else:
+                if explicit_max_model_len:
+                    logging.info(
+                        "Safety override: capped explicit MAX_MODEL_LEN from %d to %d via SAFE_MAX_MODEL_LEN_CAP",
+                        max_model_len,
+                        model_len_cap,
+                    )
+                else:
+                    logging.info(
+                        "Safety override: capped auto max_model_len from %d to %d via SAFE_MAX_MODEL_LEN_CAP",
+                        max_model_len,
+                        model_len_cap,
+                    )
+                max_model_len = model_len_cap
+                args["max_model_len"] = model_len_cap
 
     if args.get("max_num_batched_tokens") is None and max_model_len is not None:
         cap = _get_safe_max_num_batched_tokens_cap()
