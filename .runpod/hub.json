@@ -300,12 +300,22 @@
         }
       },
       {
+        "key": "SAFE_MAX_NUM_BATCHED_TOKENS_CAP",
+        "input": {
+          "name": "Safe Max Num Batched Tokens Cap",
+          "type": "number",
+          "description": "Safety cap used when max_num_batched_tokens is auto-derived from model max length.",
+          "default": 8192,
+          "advanced": true
+        }
+      },
+      {
         "key": "MAX_NUM_SEQS",
         "input": {
           "name": "Max Num Seqs",
           "type": "number",
           "description": "Maximum number of sequences per iteration.",
-          "default": 256,
+          "default": 16,
           "advanced": true
         }
       },
@@ -489,7 +499,7 @@
           "name": "Enable Chunked Prefill",
           "type": "boolean",
           "description": "Enable chunked prefill requests.",
-          "default": false,
+          "default": true,
           "advanced": true
         }
       },

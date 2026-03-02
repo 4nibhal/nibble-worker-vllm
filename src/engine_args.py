@@ -60,6 +60,31 @@ DEFAULT_ARGS = {
 
 }
 
+SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT = 8192
+LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
+
+
+def _env_is_true(env_key: str) -> bool:
+    return os.getenv(env_key, "").strip().lower() in ("true", "1", "yes", "on")
+
+
+def _get_safe_max_num_batched_tokens_cap() -> int:
+    raw_cap = os.getenv("SAFE_MAX_NUM_BATCHED_TOKENS_CAP")
+    if raw_cap is None:
+        return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
+    try:
+        cap = int(raw_cap)
+        if cap <= 0:
+            raise ValueError("cap must be positive")
+        return cap
+    except ValueError:
+        logging.warning(
+            "Invalid SAFE_MAX_NUM_BATCHED_TOKENS_CAP=%r; using default %d",
+            raw_cap,
+            SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT,
+        )
+        return SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT
+
 
 def _resolve_field_type(field_type: type) -> type:
     """Resolve Optional/Union to the concrete type for conversion."""
@@ -371,17 +396,43 @@ def get_engine_args():
     if args.get("max_num_batched_tokens") == 0:
         args["max_num_batched_tokens"] = None
 
-    if args.get("max_num_batched_tokens") is None:
-        max_model_len = args.get("max_model_len")
-        if max_model_len is None:
-            max_model_len = _resolve_max_model_len(
-                args.get("model"),
-                trust_remote_code=args.get("trust_remote_code", False),
-                revision=args.get("revision"),
+    max_model_len = args.get("max_model_len")
+    if max_model_len is None:
+        max_model_len = _resolve_max_model_len(
+            args.get("model"),
+            trust_remote_code=args.get("trust_remote_code", False),
+            revision=args.get("revision"),
+        )
+
+    if args.get("max_num_batched_tokens") is None and max_model_len is not None:
+        cap = _get_safe_max_num_batched_tokens_cap()
+        safe_batched_tokens = min(max_model_len, cap)
+        args["max_num_batched_tokens"] = safe_batched_tokens
+        if safe_batched_tokens < max_model_len:
+            logging.info(
+                "Safety override: capped auto max_num_batched_tokens from %d to %d via SAFE_MAX_NUM_BATCHED_TOKENS_CAP",
+                max_model_len,
+                safe_batched_tokens,
             )
-        if max_model_len is not None:
-            args["max_num_batched_tokens"] = max_model_len
-            logging.info(f"Setting max_num_batched_tokens to {max_model_len}")
+        else:
+            logging.info(f"Setting max_num_batched_tokens to {safe_batched_tokens}")
+
+    if (
+        max_model_len is not None
+        and max_model_len > LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD
+        and args.get("enable_chunked_prefill") is False
+    ):
+        if _env_is_true("ALLOW_UNSAFE_DISABLE_CHUNKED_PREFILL"):
+            logging.warning(
+                "Unsafe override allowed: keeping enable_chunked_prefill=False for max_model_len=%d",
+                max_model_len,
+            )
+        else:
+            args["enable_chunked_prefill"] = True
+            logging.info(
+                "Safety override: forced enable_chunked_prefill=True for large context max_model_len=%d",
+                max_model_len,
+            )
     
     # VLLM_ATTENTION_BACKEND is deprecated, migrate to attention_backend
     if os.getenv('VLLM_ATTENTION_BACKEND'):

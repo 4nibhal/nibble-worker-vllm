@@ -1,25 +1,26 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0005",
-  "objective": "Default to the vLLM nightly install path for Qwen 3.5 support while preserving a reversible stable fallback, and reduce noisy optional environment warnings in RunPod test configuration.",
-  "scope": "Apply minimal fork-local runtime/config updates in Dockerfile, .runpod/tests.json, and aiwf.request.json only: set VLLM_NIGHTLY default true with coherent single-path install logic, define explicit optional env defaults used by RunPod tests (without HF_TOKEN), and document compatibility/rollback/deploy safeguards for RunPod + vLLM.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0006",
+  "objective": "Harden fork-local serverless runtime defaults for large-context models by preventing unsafe auto-derived batching values and forcing safer chunked prefill behavior unless explicitly overridden.",
+  "scope": "Apply minimal, reversible, fork-local runtime/config updates in src/engine_args.py, .runpod/hub.json, and aiwf.request.json only: cap auto-derived max_num_batched_tokens via SAFE_MAX_NUM_BATCHED_TOKENS_CAP, enforce chunked prefill safety for very large contexts with an explicit escape hatch, and tune hub advanced defaults for safer out-of-box behavior.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Dockerfile defaults VLLM_NIGHTLY to true and keeps existing CUDA 12.8 runtime baseline unchanged.",
-    "Dockerfile uses a single coherent install branch (nightly or stable) to avoid contradictory dual-install behavior during image builds.",
-    ".runpod/tests.json config.env includes explicit defaults for HEALTH_CHECK_INIT_FAST_MODE, HEALTH_CHECK_INTERVAL_SECONDS, SCALING_MIN_QUEUE_TIME_MS, SCALING_THRESHOLD_BUFFER_MS, OTEL_EXPORTER_OTLP_ENDPOINT, POSTHOG_API_KEY, RUNPOD_GQL_API_URL, and GIN_MODE.",
-    ".runpod/tests.json does not introduce HF_TOKEN or any new secret requirement.",
+    "src/engine_args.py caps auto-derived max_num_batched_tokens using SAFE_MAX_NUM_BATCHED_TOKENS_CAP (default 8192) so large model max lengths do not become unsafe batch-token defaults.",
+    "src/engine_args.py forces enable_chunked_prefill=True when max_model_len exceeds 32768 and chunked prefill is disabled, unless ALLOW_UNSAFE_DISABLE_CHUNKED_PREFILL=true is explicitly set.",
+    "src/engine_args.py emits concise logs when runtime safety overrides are applied.",
+    ".runpod/hub.json sets ENABLE_CHUNKED_PREFILL default to true and lowers MAX_NUM_SEQS default to 16 for safer serverless behavior.",
+    ".runpod/hub.json includes advanced SAFE_MAX_NUM_BATCHED_TOKENS_CAP env input with default 8192 aligned to code.",
     "All edits remain fork-local, minimal, and reversible via documented rollback actions."
   ],
   "tests_expected": [
-    "python -m json.tool .runpod/tests.json >/dev/null",
+    "python -m py_compile src/engine_args.py",
+    "python -m json.tool .runpod/hub.json >/dev/null",
     "python -m json.tool aiwf.request.json >/dev/null",
-    "docker buildx bake --print",
-    "git diff -- Dockerfile .runpod/tests.json aiwf.request.json",
-    "Run a fork-local RunPod test job to verify optional env warning noise is reduced without requiring HF_TOKEN"
+    "git diff -- src/engine_args.py .runpod/hub.json aiwf.request.json",
+    "Run a fork-local RunPod smoke test with a large-context model (e.g., Qwen 3.5 27B) to verify startup stability and no crash from unsafe batching defaults"
   ],
-  "rollback_plan": "Immediate rollback: set Dockerfile ARG VLLM_NIGHTLY back to false and restore prior two-step install flow if nightly regressions appear; remove newly added optional env defaults from .runpod/tests.json to return to prior behavior; revert this change set in one fork-local commit to restore previous runtime/test configuration. No upstream operations required.",
-  "deploy_plan": "Build and validate in this fork only. Run JSON validation and docker buildx bake print checks before merge, then run a fork-local RunPod smoke test using the existing test suite to verify startup and inference behavior under the nightly default path.",
-  "threat_model": "Key risks are nightly package instability, dependency drift from pre-release wheels, and subtle runtime behavior changes from explicit env defaults. Mitigations: keep CUDA base image unchanged, preserve a stable fallback branch controlled by VLLM_NIGHTLY, avoid introducing new secrets (no HF_TOKEN), and require fast fork-local rollback through a minimal three-file revert.",
+  "rollback_plan": "Immediate rollback in this fork: remove SAFE_MAX_NUM_BATCHED_TOKENS_CAP logic and large-context chunked-prefill enforcement from src/engine_args.py, restore .runpod/hub.json defaults (ENABLE_CHUNKED_PREFILL=false, MAX_NUM_SEQS=256, remove SAFE_MAX_NUM_BATCHED_TOKENS_CAP entry), and revert this exact three-file change set in one commit. Operational fallback without code rollback: set SAFE_MAX_NUM_BATCHED_TOKENS_CAP to prior desired value and, if needed for troubleshooting only, set ALLOW_UNSAFE_DISABLE_CHUNKED_PREFILL=true. No upstream operations required.",
+  "deploy_plan": "Validate in this fork only: run py_compile and JSON checks, inspect focused git diff, then run a fork-local RunPod smoke test on a long-context model to confirm the worker starts and serves without OOM/crash from auto-derived batching defaults.",
+  "threat_model": "Primary risks are throughput regression from tighter defaults, behavior changes for users who previously relied on disabling chunked prefill at high context lengths, and misconfiguration of the new safety cap env. Mitigations: conservative default cap (8192), explicit escape hatch for unsafe disable, concise runtime logs for overrides, and single-commit rollback across only three files.",
   "ambiguities": []
 }
