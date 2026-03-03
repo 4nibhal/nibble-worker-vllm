@@ -1,23 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0014",
-  "objective": "Add a lightweight preflight automation entrypoint for fork-local RunPod redeploy validation with cheap defaults and optional heavier checks.",
-  "scope": "Add root preflight.sh with strict-mode low-cost checks (py_compile, JSON parse, docker bake print), optional --with-build docker build, optional --model runtime-arg preflight via src.engine_args.get_engine_args, and document usage in README; no upstream interactions.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0015",
+  "objective": "Fix startup failure in non-GPU platform checks by adding automatic CPU device fallback only when DEVICE is not explicitly set and CUDA runtime is unavailable.",
+  "scope": "Apply a minimal runtime-safe change in src/engine_args.py to probe CUDA availability safely, force device=cpu only for implicit-device flows when CUDA is unavailable, and keep multi-GPU tensor-parallel auto behavior gated on actual GPU availability.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "./preflight.sh runs low-cost checks by default and prints clear PASS/FAIL status per step.",
-    "--with-build runs docker build --platform linux/amd64 -t nibble-worker-vllm:preflight . as an optional costly step.",
-    "--model <HF_MODEL_ID> executes a runtime-arg preflight using get_engine_args with MODEL_NAME set and exits non-zero on exception.",
-    "--help prints usage and explains low-cost vs costly checks.",
-    "README documents quick and full preflight commands near build/deploy guidance."
+    "When DEVICE is explicitly set, engine args keep that value with no automatic override.",
+    "When DEVICE is not explicitly set and CUDA runtime is unavailable (is_available false, device_count 0, or CUDA probe raises), engine args set device=cpu and log why.",
+    "When CUDA runtime is available, device auto behavior remains unchanged and no CPU forcing occurs.",
+    "Automatic multi-GPU tensor_parallel_size adjustment happens only when CUDA runtime is available and GPU count > 1.",
+    "Existing profile/default/cap/guardrail logic remains intact."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('aiwf.request.json')); json.load(open('.runpod/hub.json')); print('json ok')\"",
+    "python -c \"import json; json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Fork-local rollback is a single commit revert removing preflight.sh and README/request updates, restoring prior redeploy workflow without preflight automation.",
-  "deploy_plan": "Use ./preflight.sh as a required local gate before RunPod redeploy; reserve --with-build for release candidates or image/runtime changes, then proceed with conservative rollout 1->2->4.",
-  "threat_model": "Primary risks are false confidence from partial checks and accidental costly local builds; mitigations are explicit low-cost default, clear help text, PASS/FAIL output, and optional opt-in heavy build/model checks.",
+  "rollback_plan": "Fork-local rollback is a single commit revert of src/engine_args.py and this request file, restoring previous DEVICE auto behavior if unexpected CPU fallback side effects are observed.",
+  "deploy_plan": "Deploy with conservative rollout 1->2->4; verify startup logs show CPU fallback only in non-GPU checks and unchanged CUDA path on real GPU nodes.",
+  "threat_model": "Primary risk is unintended CPU execution in GPU-capable environments or hidden CUDA probe regressions; mitigated by honoring explicit DEVICE, requiring successful CUDA probe before GPU-only behaviors, and log visibility of fallback reason.",
   "ambiguities": []
 }

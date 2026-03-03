@@ -38,6 +38,7 @@ metadata:
 - [Large-context runtime path and no explicit escape hatch] -> [Keep ENABLE_CHUNKED_PREFILL=true]
 - [Production runtime requires Hugging Face auth token] -> [Prefer HUGGINGFACE_ACCESS_TOKEN or supported token aliases]
 - [Concurrency tuning plan is unspecified] -> [Start conservative and scale in stages 1->2->4]
+- [No CUDA device is available and DEVICE is not explicit] -> [Default DEVICE=cpu for startup compatibility checks]
 - [Startup fails on vLLM ModelConfig max_model_len validation] -> [Block rollout/release until profile defaults are adjusted or explicit override rationale is documented]
 
 ## Delegation Guidance

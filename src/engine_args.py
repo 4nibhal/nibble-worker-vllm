@@ -3,7 +3,6 @@ import json
 import logging
 import re
 from typing import get_origin, get_args
-from torch.cuda import device_count
 from vllm import AsyncEngineArgs
 from vllm.model_executor.model_loader.tensorizer import TensorizerConfig
 from src.utils import convert_limit_mm_per_prompt
@@ -506,6 +505,30 @@ def _resolve_max_model_len(model, trust_remote_code=False, revision=None):
     return None
 
 
+def _detect_cuda_runtime():
+    """Safely detect whether CUDA runtime is usable in current environment."""
+    try:
+        import torch
+    except Exception as e:
+        return False, 0, f"torch import failed: {e}"
+
+    try:
+        cuda_available = bool(torch.cuda.is_available())
+    except Exception as e:
+        return False, 0, f"torch.cuda.is_available() failed: {e}"
+
+    try:
+        num_gpus = int(torch.cuda.device_count())
+    except Exception as e:
+        return False, 0, f"torch.cuda.device_count() failed: {e}"
+
+    if not cuda_available:
+        return False, num_gpus, "torch.cuda.is_available() returned False"
+    if num_gpus <= 0:
+        return False, num_gpus, f"torch.cuda.device_count() returned {num_gpus}"
+    return True, num_gpus, None
+
+
 def _local_args_to_engine_args(local: dict) -> dict:
     """Map local args (e.g. from /local_model_args.json) to engine arg names and filter."""
     valid = AsyncEngineArgs.__dataclass_fields__
@@ -607,9 +630,18 @@ def get_engine_args():
     if args.get("load_format") == "bitsandbytes":
         args["quantization"] = args["load_format"]
 
+    device_env_is_explicit = _env_has_explicit_value("DEVICE")
+    cuda_runtime_available, num_gpus, cuda_probe_reason = _detect_cuda_runtime()
+
+    if not device_env_is_explicit and not cuda_runtime_available:
+        args["device"] = "cpu"
+        logging.info(
+            "CUDA runtime unavailable (%s); setting device='cpu' because DEVICE was not explicitly set.",
+            cuda_probe_reason,
+        )
+
     # Set tensor parallel size and max parallel loading workers if more than 1 GPU is available
-    num_gpus = device_count()
-    if num_gpus > 1:
+    if num_gpus > 1 and cuda_runtime_available and args.get("device") != "cpu":
         args["tensor_parallel_size"] = num_gpus
         args["max_parallel_loading_workers"] = None
         if os.getenv("MAX_PARALLEL_LOADING_WORKERS"):
