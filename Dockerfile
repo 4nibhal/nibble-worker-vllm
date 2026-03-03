@@ -6,7 +6,7 @@ RUN apt-get update -y \
 RUN ldconfig /usr/local/cuda-12.8/compat/
 
 ARG VLLM_NIGHTLY="true"
-ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev141+g792a74b97"
+ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev184+gae88468bc"
 
 # Install vLLM (nightly default-on; stable path kept for rollback)
 RUN python3 -m pip install --upgrade pip && \

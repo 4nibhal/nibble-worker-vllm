@@ -1,23 +1,22 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0011",
-  "objective": "Fix fork-local RunPod Docker build failures in the nightly vLLM install step while preserving explicit nightly opt-in behavior and keeping rollback simple.",
-  "scope": "Apply minimal reversible edits in Dockerfile and aiwf.request.json only; keep stable install path unchanged, avoid upstream interaction, and preserve default nightly mode semantics.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0012",
+  "objective": "Apply a fork-local runtime hotfix to restore RunPod nightly build reliability by updating the default pinned vLLM nightly to a currently available exact build.",
+  "scope": "Update Dockerfile ARG VLLM_NIGHTLY_VERSION only and refresh aiwf.request.json governance fields; keep nightly retry+fallback logic and stable install branch unchanged; no upstream interactions.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Dockerfile nightly branch first attempts exact install of vllm==${VLLM_NIGHTLY_VERSION} from PyPI + wheels.vllm.ai/nightly.",
-    "If the pinned nightly install fails (e.g., wheel pruned or transient index error), Dockerfile retries pinned install once before falling back to latest nightly pre-release from the nightly index.",
+    "Dockerfile defaults VLLM_NIGHTLY_VERSION to 0.16.1rc1.dev184+gae88468bc (an available exact nightly build).",
+    "Nightly install branch keeps existing pinned-attempt retry and latest-nightly fallback behavior unchanged.",
     "VLLM_NIGHTLY=true continues to enforce nightly-channel installs only; stable path remains gated behind VLLM_NIGHTLY=false.",
     "No unrelated files or upstream remotes are modified."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
     "python -c \"import json; json.load(open('aiwf.request.json')); print('json ok')\"",
-    "docker buildx bake --print",
-    "git diff -- Dockerfile aiwf.request.json"
+    "docker buildx bake --print"
   ],
-  "rollback_plan": "Fork-local rollback is a single commit that restores the previous nightly install line in Dockerfile (remove retry/fallback grouping) and reverts aiwf.request.json to its prior request record. No upstream interactions.",
-  "deploy_plan": "Run py_compile, aiwf.request.json JSON parse check, and docker buildx bake --print in this fork; then build one nightly image path on RunPod and confirm vLLM import/startup before release tagging.",
-  "threat_model": "Risks: fallback to latest nightly can introduce non-deterministic dependency resolution when pinned wheel is unavailable, and broad fallback on install failure can hide root-cause drift. Mitigations: keep fallback confined to VLLM_NIGHTLY=true path, retain exact pinned attempt first (with retry), preserve explicit stable rollback path via VLLM_NIGHTLY=false, and keep rollback to one Dockerfile hunk revert.",
+  "rollback_plan": "Fork-local rollback is a single commit that restores Dockerfile ARG VLLM_NIGHTLY_VERSION to 0.16.1rc1.dev141+g792a74b97 and reverts this request record; retry+fallback logic stays untouched in both forward and rollback paths.",
+  "deploy_plan": "After local validation, run one fork-only RunPod build using default nightly settings, verify vLLM install/import at container startup, and promote only after successful smoke verification.",
+  "threat_model": "Primary risk is pinned nightly churn (wheel pruning) causing future install drift; changing only the default pinned value to a known-available exact build lowers immediate failure risk while preserving existing retry/fallback and stable rollback branch behavior.",
   "ambiguities": []
 }
