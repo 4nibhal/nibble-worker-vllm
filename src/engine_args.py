@@ -526,6 +526,15 @@ def _detect_cuda_runtime():
         return False, num_gpus, "torch.cuda.is_available() returned False"
     if num_gpus <= 0:
         return False, num_gpus, f"torch.cuda.device_count() returned {num_gpus}"
+
+    try:
+        current_index = int(torch.cuda.current_device())
+        torch.cuda.get_device_properties(current_index)
+    except RuntimeError as e:
+        return False, num_gpus, f"CUDA usability probe failed: {e}"
+    except Exception as e:
+        return False, num_gpus, f"Unexpected CUDA usability probe failure: {e}"
+
     return True, num_gpus, None
 
 
