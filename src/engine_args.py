@@ -12,6 +12,8 @@ ENV_ALIASES = {
     "MODEL_NAME": "model",
     "MODEL_REVISION": "revision",
     "TOKENIZER_NAME": "tokenizer",
+    "HUGGINGFACE_ACCESS_TOKEN": "hf_token",
+    "HUGGING_FACE_HUB_TOKEN": "hf_token",
 }
 
 # Literal defaults from original worker (used when env/local do not set a value)
@@ -414,6 +416,19 @@ def get_engine_args():
         logging.warning(
             "Using MAX_CONTEXT_LEN_TO_CAPTURE is deprecated. Please use MAX_SEQ_LEN_TO_CAPTURE instead."
         )
+
+    model_name = str(args.get("model", "")).lower()
+    if "qwen3.5" in model_name:
+        if "LANGUAGE_MODEL_ONLY" not in os.environ:
+            args["language_model_only"] = True
+            logging.info(
+                "Applied Qwen3.5 safety default: language_model_only=True (LANGUAGE_MODEL_ONLY not set)."
+            )
+        if "ENFORCE_EAGER" not in os.environ:
+            args["enforce_eager"] = True
+            logging.info(
+                "Applied Qwen3.5 safety default: enforce_eager=True (ENFORCE_EAGER not set)."
+            )
 
     # if "gemma-2" in args.get("model", "").lower():
     #     os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
