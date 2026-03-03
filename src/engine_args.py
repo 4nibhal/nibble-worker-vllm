@@ -177,11 +177,15 @@ def _is_qwen3_5_model(model_name: str) -> bool:
 def _infer_model_size_b(model_name: str):
     if not model_name:
         return None
-    match = re.search(r"(\d+(?:\.\d+)?)\s*b\b", model_name.lower())
+    match = re.search(r"(\d+(?:\.\d+)?)\s*([bm])\b", model_name.lower())
     if not match:
         return None
     try:
-        return float(match.group(1))
+        size = float(match.group(1))
+        suffix = match.group(2)
+        if suffix == "m":
+            return size / 1000.0
+        return size
     except ValueError:
         return None
 
@@ -654,12 +658,30 @@ def get_engine_args():
         "none",
         "0",
     )
-    if max_model_len is None:
-        max_model_len = _resolve_max_model_len(
+    resolved_model_max_model_len = None
+    if not explicit_max_model_len or max_model_len is None:
+        resolved_model_max_model_len = _resolve_max_model_len(
             args.get("model"),
             trust_remote_code=args.get("trust_remote_code", False),
             revision=args.get("revision"),
         )
+
+    if max_model_len is None:
+        max_model_len = resolved_model_max_model_len
+        if max_model_len is not None:
+            args["max_model_len"] = max_model_len
+    elif (
+        not explicit_max_model_len
+        and resolved_model_max_model_len is not None
+        and max_model_len > resolved_model_max_model_len
+    ):
+        logging.info(
+            "Safety override: clamped computed max_model_len from %d to model config max %d",
+            max_model_len,
+            resolved_model_max_model_len,
+        )
+        max_model_len = resolved_model_max_model_len
+        args["max_model_len"] = max_model_len
 
     if max_model_len is not None:
         model_len_cap = _get_safe_max_model_len_cap()

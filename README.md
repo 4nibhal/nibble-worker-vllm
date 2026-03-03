@@ -138,6 +138,22 @@ export HF_TOKEN="your_token_here"
 docker build -t username/image:tag --secret id=HF_TOKEN --build-arg MODEL_NAME="openchat/openchat_3.5" .
 ```
 
+## Preflight Before RunPod Redeploy
+
+Run lightweight local checks before redeploy:
+
+```bash
+./preflight.sh
+```
+
+Run full preflight including local image build and runtime-arg model check:
+
+```bash
+./preflight.sh --with-build --model "HuggingFaceTB/SmolLM2-135M-Instruct"
+```
+
+The default checks are cheap/local. `--with-build` is the costly step.
+
 # Compatible Model Architectures
 
 You can deploy **any model on Hugging Face** that is supported by vLLM. For the complete and up-to-date list of supported model architectures, see the [vLLM Supported Models documentation](https://docs.vllm.ai/en/latest/models/supported_models.html#list-of-text-only-language-models).

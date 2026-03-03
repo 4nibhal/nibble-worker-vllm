@@ -1,22 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0012",
-  "objective": "Apply a fork-local runtime hotfix to restore RunPod nightly build reliability by updating the default pinned vLLM nightly to a currently available exact build.",
-  "scope": "Update Dockerfile ARG VLLM_NIGHTLY_VERSION only and refresh aiwf.request.json governance fields; keep nightly retry+fallback logic and stable install branch unchanged; no upstream interactions.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0014",
+  "objective": "Add a lightweight preflight automation entrypoint for fork-local RunPod redeploy validation with cheap defaults and optional heavier checks.",
+  "scope": "Add root preflight.sh with strict-mode low-cost checks (py_compile, JSON parse, docker bake print), optional --with-build docker build, optional --model runtime-arg preflight via src.engine_args.get_engine_args, and document usage in README; no upstream interactions.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Dockerfile defaults VLLM_NIGHTLY_VERSION to 0.16.1rc1.dev184+gae88468bc (an available exact nightly build).",
-    "Nightly install branch keeps existing pinned-attempt retry and latest-nightly fallback behavior unchanged.",
-    "VLLM_NIGHTLY=true continues to enforce nightly-channel installs only; stable path remains gated behind VLLM_NIGHTLY=false.",
-    "No unrelated files or upstream remotes are modified."
+    "./preflight.sh runs low-cost checks by default and prints clear PASS/FAIL status per step.",
+    "--with-build runs docker build --platform linux/amd64 -t nibble-worker-vllm:preflight . as an optional costly step.",
+    "--model <HF_MODEL_ID> executes a runtime-arg preflight using get_engine_args with MODEL_NAME set and exits non-zero on exception.",
+    "--help prints usage and explains low-cost vs costly checks.",
+    "README documents quick and full preflight commands near build/deploy guidance."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('aiwf.request.json')); print('json ok')\"",
+    "python -c \"import json; json.load(open('aiwf.request.json')); json.load(open('.runpod/hub.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Fork-local rollback is a single commit that restores Dockerfile ARG VLLM_NIGHTLY_VERSION to 0.16.1rc1.dev141+g792a74b97 and reverts this request record; retry+fallback logic stays untouched in both forward and rollback paths.",
-  "deploy_plan": "After local validation, run one fork-only RunPod build using default nightly settings, verify vLLM install/import at container startup, and promote only after successful smoke verification.",
-  "threat_model": "Primary risk is pinned nightly churn (wheel pruning) causing future install drift; changing only the default pinned value to a known-available exact build lowers immediate failure risk while preserving existing retry/fallback and stable rollback branch behavior.",
+  "rollback_plan": "Fork-local rollback is a single commit revert removing preflight.sh and README/request updates, restoring prior redeploy workflow without preflight automation.",
+  "deploy_plan": "Use ./preflight.sh as a required local gate before RunPod redeploy; reserve --with-build for release candidates or image/runtime changes, then proceed with conservative rollout 1->2->4.",
+  "threat_model": "Primary risks are false confidence from partial checks and accidental costly local builds; mitigations are explicit low-cost default, clear help text, PASS/FAIL output, and optional opt-in heavy build/model checks.",
   "ambiguities": []
 }
