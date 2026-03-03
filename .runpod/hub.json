@@ -29,6 +29,57 @@
         }
       },
       {
+        "key": "RUNTIME_PROFILE",
+        "input": {
+          "name": "Runtime Profile",
+          "type": "string",
+          "description": "Runtime tuning profile used for conservative defaults when specific runtime env vars are not set.",
+          "options": [
+            {
+              "label": "safe",
+              "value": "safe"
+            },
+            {
+              "label": "balanced",
+              "value": "balanced"
+            },
+            {
+              "label": "throughput",
+              "value": "throughput"
+            }
+          ],
+          "advanced": true
+        }
+      },
+      {
+        "key": "MODEL_PROFILE",
+        "input": {
+          "name": "Model Profile",
+          "type": "string",
+          "description": "Model family profile used with runtime profiles for default engine argument selection.",
+          "options": [
+            {
+              "label": "auto",
+              "value": "auto"
+            },
+            {
+              "label": "qwen3_5_27b",
+              "value": "qwen3_5_27b"
+            },
+            {
+              "label": "general_7b",
+              "value": "general_7b"
+            },
+            {
+              "label": "general_14b",
+              "value": "general_14b"
+            }
+          ],
+          "default": "auto",
+          "advanced": true
+        }
+      },
+      {
         "key": "TOKENIZER",
         "input": {
           "name": "Tokenizer",

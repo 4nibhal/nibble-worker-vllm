@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 from typing import get_origin, get_args
 from torch.cuda import device_count
 from vllm import AsyncEngineArgs
@@ -65,9 +66,186 @@ SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT = 8192
 SAFE_MAX_MODEL_LEN_CAP_DEFAULT = 32768
 LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
 
+RUNTIME_PROFILE_SAFE = "safe"
+RUNTIME_PROFILE_BALANCED = "balanced"
+RUNTIME_PROFILE_THROUGHPUT = "throughput"
+ALLOWED_RUNTIME_PROFILES = {
+    RUNTIME_PROFILE_SAFE,
+    RUNTIME_PROFILE_BALANCED,
+    RUNTIME_PROFILE_THROUGHPUT,
+}
+
+MODEL_PROFILE_AUTO = "auto"
+MODEL_PROFILE_QWEN3_5_27B = "qwen3_5_27b"
+MODEL_PROFILE_GENERAL_7B = "general_7b"
+MODEL_PROFILE_GENERAL_14B = "general_14b"
+ALLOWED_MODEL_PROFILES = {
+    MODEL_PROFILE_AUTO,
+    MODEL_PROFILE_QWEN3_5_27B,
+    MODEL_PROFILE_GENERAL_7B,
+    MODEL_PROFILE_GENERAL_14B,
+}
+
+PROFILE_DEFAULTS = {
+    MODEL_PROFILE_QWEN3_5_27B: {
+        "max_model_len": 32768,
+        "max_num_batched_tokens": 8192,
+        "max_num_seqs": {
+            RUNTIME_PROFILE_SAFE: 64,
+            RUNTIME_PROFILE_BALANCED: 96,
+            RUNTIME_PROFILE_THROUGHPUT: 128,
+        },
+        "gpu_memory_utilization": {
+            RUNTIME_PROFILE_SAFE: 0.9,
+            RUNTIME_PROFILE_BALANCED: 0.92,
+            RUNTIME_PROFILE_THROUGHPUT: 0.95,
+        },
+        "enforce_eager": {
+            RUNTIME_PROFILE_SAFE: True,
+            RUNTIME_PROFILE_BALANCED: True,
+            RUNTIME_PROFILE_THROUGHPUT: False,
+        },
+        "language_model_only": True,
+        "enable_chunked_prefill": True,
+    },
+    MODEL_PROFILE_GENERAL_14B: {
+        "max_model_len": 32768,
+        "max_num_batched_tokens": 8192,
+        "max_num_seqs": {
+            RUNTIME_PROFILE_SAFE: 64,
+            RUNTIME_PROFILE_BALANCED: 128,
+            RUNTIME_PROFILE_THROUGHPUT: 160,
+        },
+        "gpu_memory_utilization": {
+            RUNTIME_PROFILE_SAFE: 0.9,
+            RUNTIME_PROFILE_BALANCED: 0.92,
+            RUNTIME_PROFILE_THROUGHPUT: 0.95,
+        },
+        "enforce_eager": {
+            RUNTIME_PROFILE_SAFE: True,
+            RUNTIME_PROFILE_BALANCED: False,
+            RUNTIME_PROFILE_THROUGHPUT: False,
+        },
+        "language_model_only": False,
+        "enable_chunked_prefill": True,
+    },
+    MODEL_PROFILE_GENERAL_7B: {
+        "max_model_len": 16384,
+        "max_num_batched_tokens": 8192,
+        "max_num_seqs": {
+            RUNTIME_PROFILE_SAFE: 128,
+            RUNTIME_PROFILE_BALANCED: 192,
+            RUNTIME_PROFILE_THROUGHPUT: 256,
+        },
+        "gpu_memory_utilization": {
+            RUNTIME_PROFILE_SAFE: 0.92,
+            RUNTIME_PROFILE_BALANCED: 0.94,
+            RUNTIME_PROFILE_THROUGHPUT: 0.96,
+        },
+        "enforce_eager": {
+            RUNTIME_PROFILE_SAFE: False,
+            RUNTIME_PROFILE_BALANCED: False,
+            RUNTIME_PROFILE_THROUGHPUT: False,
+        },
+        "language_model_only": False,
+        "enable_chunked_prefill": True,
+    },
+}
+
 
 def _env_is_true(env_key: str) -> bool:
     return os.getenv(env_key, "").strip().lower() in ("true", "1", "yes", "on")
+
+
+def _env_has_explicit_value(env_key: str, zero_means_unset: bool = False) -> bool:
+    raw_value = os.getenv(env_key)
+    if raw_value is None:
+        return False
+    value = raw_value.strip()
+    if value in ("", "None", "none"):
+        return False
+    if zero_means_unset and value == "0":
+        return False
+    return True
+
+
+def _is_qwen3_5_model(model_name: str) -> bool:
+    normalized = model_name.lower().replace("-", "").replace("_", "")
+    return "qwen3.5" in model_name.lower() or "qwen35" in normalized
+
+
+def _infer_model_size_b(model_name: str):
+    if not model_name:
+        return None
+    match = re.search(r"(\d+(?:\.\d+)?)\s*b\b", model_name.lower())
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _resolve_model_profile(model_name: str) -> str:
+    raw_profile = os.getenv("MODEL_PROFILE", MODEL_PROFILE_AUTO).strip().lower()
+    if raw_profile and raw_profile not in ALLOWED_MODEL_PROFILES:
+        logging.warning(
+            "Invalid MODEL_PROFILE=%r; using %s",
+            raw_profile,
+            MODEL_PROFILE_AUTO,
+        )
+        raw_profile = MODEL_PROFILE_AUTO
+
+    if raw_profile != MODEL_PROFILE_AUTO:
+        return raw_profile
+
+    if _is_qwen3_5_model(model_name):
+        return MODEL_PROFILE_QWEN3_5_27B
+
+    size_b = _infer_model_size_b(model_name)
+    if size_b is None:
+        return MODEL_PROFILE_GENERAL_14B
+    if size_b >= 14:
+        return MODEL_PROFILE_GENERAL_14B
+    return MODEL_PROFILE_GENERAL_7B
+
+
+def _resolve_runtime_profile(model_name: str) -> str:
+    raw_profile = os.getenv("RUNTIME_PROFILE", "").strip().lower()
+    if raw_profile:
+        if raw_profile in ALLOWED_RUNTIME_PROFILES:
+            return raw_profile
+        logging.warning(
+            "Invalid RUNTIME_PROFILE=%r; selecting profile from model size",
+            raw_profile,
+        )
+
+    size_b = _infer_model_size_b(model_name)
+    if size_b is None or size_b >= 14:
+        return RUNTIME_PROFILE_SAFE
+    return RUNTIME_PROFILE_BALANCED
+
+
+def _compute_profile_defaults(model_name: str) -> dict:
+    model_profile = _resolve_model_profile(model_name)
+    runtime_profile = _resolve_runtime_profile(model_name)
+    profile = PROFILE_DEFAULTS[model_profile]
+
+    computed = {
+        "max_model_len": profile["max_model_len"],
+        "max_num_batched_tokens": profile["max_num_batched_tokens"],
+        "max_num_seqs": profile["max_num_seqs"][runtime_profile],
+        "gpu_memory_utilization": profile["gpu_memory_utilization"][runtime_profile],
+        "enforce_eager": profile["enforce_eager"][runtime_profile],
+        "language_model_only": profile["language_model_only"],
+        "enable_chunked_prefill": profile["enable_chunked_prefill"],
+    }
+    logging.info(
+        "Runtime profile defaults selected: runtime_profile=%s model_profile=%s",
+        runtime_profile,
+        model_profile,
+    )
+    return computed
 
 
 def _get_safe_max_num_batched_tokens_cap() -> int:
@@ -373,8 +551,10 @@ def get_engine_args():
 
     # Local baked-in model overrides
     local = get_local_args()
+    local_overrides = {}
     if local:
-        args.update(_local_args_to_engine_args(local))
+        local_overrides = _local_args_to_engine_args(local)
+        args.update(local_overrides)
 
     # Filter to valid engine args and drop sentinel empty values
     valid_fields = AsyncEngineArgs.__dataclass_fields__
@@ -383,6 +563,32 @@ def get_engine_args():
         for k, v in args.items()
         if k in valid_fields and v not in (None, "", "None")
     }
+
+    model_name = str(args.get("model", ""))
+    profile_defaults = _compute_profile_defaults(model_name)
+    profile_env_map = {
+        "max_model_len": "MAX_MODEL_LEN",
+        "max_num_batched_tokens": "MAX_NUM_BATCHED_TOKENS",
+        "max_num_seqs": "MAX_NUM_SEQS",
+        "gpu_memory_utilization": "GPU_MEMORY_UTILIZATION",
+        "enforce_eager": "ENFORCE_EAGER",
+        "language_model_only": "LANGUAGE_MODEL_ONLY",
+        "enable_chunked_prefill": "ENABLE_CHUNKED_PREFILL",
+    }
+    profile_zero_is_unset = {
+        "max_model_len": True,
+        "max_num_batched_tokens": True,
+    }
+    for key, value in profile_defaults.items():
+        if key in local_overrides:
+            continue
+        env_key = profile_env_map[key]
+        if _env_has_explicit_value(
+            env_key,
+            zero_means_unset=profile_zero_is_unset.get(key, False),
+        ):
+            continue
+        args[key] = value
 
     # Special conversion for limit_mm_per_prompt (e.g. "image=1,video=0")
     limit_mm_env = os.getenv("LIMIT_MM_PER_PROMPT")
@@ -411,24 +617,12 @@ def get_engine_args():
     if args.get("kv_cache_dtype") == "fp8_e5m2":
         args["kv_cache_dtype"] = "fp8"
         logging.warning("Using fp8_e5m2 is deprecated. Please use fp8 instead.")
-    if os.getenv("MAX_CONTEXT_LEN_TO_CAPTURE"):
-        args["max_seq_len_to_capture"] = int(os.getenv("MAX_CONTEXT_LEN_TO_CAPTURE"))
+    max_context_len_to_capture = os.getenv("MAX_CONTEXT_LEN_TO_CAPTURE")
+    if max_context_len_to_capture:
+        args["max_seq_len_to_capture"] = int(max_context_len_to_capture)
         logging.warning(
             "Using MAX_CONTEXT_LEN_TO_CAPTURE is deprecated. Please use MAX_SEQ_LEN_TO_CAPTURE instead."
         )
-
-    model_name = str(args.get("model", "")).lower()
-    if "qwen3.5" in model_name:
-        if "LANGUAGE_MODEL_ONLY" not in os.environ:
-            args["language_model_only"] = True
-            logging.info(
-                "Applied Qwen3.5 safety default: language_model_only=True (LANGUAGE_MODEL_ONLY not set)."
-            )
-        if "ENFORCE_EAGER" not in os.environ:
-            args["enforce_eager"] = True
-            logging.info(
-                "Applied Qwen3.5 safety default: enforce_eager=True (ENFORCE_EAGER not set)."
-            )
 
     # if "gemma-2" in args.get("model", "").lower():
     #     os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
@@ -491,6 +685,24 @@ def get_engine_args():
                     )
                 max_model_len = model_len_cap
                 args["max_model_len"] = model_len_cap
+
+    explicit_max_num_batched_tokens = os.getenv("MAX_NUM_BATCHED_TOKENS") not in (
+        None,
+        "",
+        "None",
+        "none",
+        "0",
+    )
+    max_num_batched_tokens = args.get("max_num_batched_tokens")
+    if max_num_batched_tokens is not None and not explicit_max_num_batched_tokens:
+        batched_tokens_cap = _get_safe_max_num_batched_tokens_cap()
+        if max_num_batched_tokens > batched_tokens_cap:
+            logging.info(
+                "Safety override: capped computed max_num_batched_tokens from %d to %d via SAFE_MAX_NUM_BATCHED_TOKENS_CAP",
+                max_num_batched_tokens,
+                batched_tokens_cap,
+            )
+            args["max_num_batched_tokens"] = batched_tokens_cap
 
     if args.get("max_num_batched_tokens") is None and max_model_len is not None:
         cap = _get_safe_max_num_batched_tokens_cap()

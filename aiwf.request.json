@@ -1,26 +1,25 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0009",
-  "objective": "Stabilize RunPod worker startup for qwen/qwen3.5-27b with deterministic nightly packaging and conservative runtime safety defaults.",
-  "scope": "Apply minimal, reversible, fork-local runtime updates in Dockerfile, src/engine_args.py, and aiwf.request.json: pin vLLM nightly package version, add HF token env aliases, and add Qwen3.5 safety defaults only when users do not explicitly set corresponding env vars.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0010",
+  "objective": "Implement a fork-local runtime profile layer that selects conservative vLLM engine defaults by runtime/model profile while preserving explicit env override behavior and existing safety guards.",
+  "scope": "Apply minimal reversible edits in src/engine_args.py, .runpod/hub.json, and aiwf.request.json to add RUNTIME_PROFILE and MODEL_PROFILE selectors, profile-based defaults for key engine args, and RunPod advanced dropdown exposure without changing upstream workflows.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Dockerfile adds VLLM_NIGHTLY_VERSION with default 0.16.1rc1.dev141+g792a74b97 and installs that exact nightly version when VLLM_NIGHTLY=true.",
-    "Dockerfile stable fallback path remains unchanged when VLLM_NIGHTLY!=true.",
-    "src/engine_args.py maps HUGGINGFACE_ACCESS_TOKEN and HUGGING_FACE_HUB_TOKEN to hf_token without removing existing env behavior.",
-    "src/engine_args.py applies qwen3.5 safety defaults language_model_only=True and enforce_eager=True only when LANGUAGE_MODEL_ONLY / ENFORCE_EAGER are not explicitly provided.",
-    "Safety-default application is logged with clear informational messages.",
-    "All edits remain fork-local, minimal, and reversible via documented rollback actions."
+    "src/engine_args.py reads RUNTIME_PROFILE (safe|balanced|throughput) and MODEL_PROFILE (auto|qwen3_5_27b|general_7b|general_14b) and computes profile defaults for max_model_len, max_num_batched_tokens, max_num_seqs, gpu_memory_utilization, enforce_eager, language_model_only, and enable_chunked_prefill.",
+    "Explicit env vars for those fields retain highest precedence over computed profile defaults.",
+    "MODEL_PROFILE=auto resolves qwen3_5_27b for Qwen 3.5 models unless MODEL_PROFILE is explicitly set; runtime defaults to safe for >=14B or unknown model sizes.",
+    "Existing safety caps SAFE_MAX_MODEL_LEN_CAP and SAFE_MAX_NUM_BATCHED_TOKENS_CAP remain active for computed defaults.",
+    "Existing optional zero-to-None normalization for NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS remains unchanged.",
+    ".runpod/hub.json exposes RUNTIME_PROFILE and MODEL_PROFILE as advanced dropdown inputs with allowed options."
   ],
   "tests_expected": [
-    "python -m py_compile src/engine_args.py",
-    "python -m json.tool aiwf.request.json >/dev/null",
+    "python -m py_compile src/*.py handler.py",
+    "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print",
-    "git diff -- Dockerfile src/engine_args.py aiwf.request.json",
-    "Run a fork-local RunPod smoke test with qwen/qwen3.5-27b and verify deterministic startup behavior with no EngineCore init regression"
+    "git diff -- src/engine_args.py .runpod/hub.json aiwf.request.json"
   ],
-  "rollback_plan": "Immediate rollback in this fork: revert Dockerfile nightly pin lines and src/engine_args.py alias/Qwen3.5 safety-default block in one commit; restore previous floating nightly installer behavior and previous engine-arg behavior. No upstream operations required.",
-  "deploy_plan": "Validate in this fork only with py_compile + JSON validation + docker buildx bake --print + focused diff, then run RunPod smoke test on qwen/qwen3.5-27b. If stable, publish fork release; if regressions appear, execute one-commit rollback.",
-  "threat_model": "Primary risks are (1) pinned nightly becoming unavailable, and (2) qwen3.5 defaults changing behavior for users relying on multimodal/eager-disabled startup. Mitigations: keep stable branch path untouched, gate safety defaults on explicit env presence so users can override, log every safety-default application, and keep rollback to a single small fork-local commit.",
+  "rollback_plan": "Fork-local rollback is one commit that removes profile selection helpers and profile default application in src/engine_args.py, removes RUNTIME_PROFILE and MODEL_PROFILE entries from .runpod/hub.json, and restores prior behavior where defaults were driven only by existing args/env logic. No upstream interactions.",
+  "deploy_plan": "Validate in this fork with py_compile, JSON parse checks, and docker buildx bake --print; then perform staged runtime rollout safe->balanced->throughput with a qwen3.5 and non-qwen smoke matrix before release tagging.",
+  "threat_model": "Risks: misclassified model profile causing aggressive defaults, runtime profile misuse increasing VRAM pressure, and silent behavior shifts. Mitigations: constrained profile option set, safe default for >=14B/unknown, explicit-env precedence, retained safety caps/chunked-prefill guardrails, and immediate fork-local rollback path.",
   "ambiguities": []
 }
