@@ -1,25 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0010",
-  "objective": "Implement a fork-local runtime profile layer that selects conservative vLLM engine defaults by runtime/model profile while preserving explicit env override behavior and existing safety guards.",
-  "scope": "Apply minimal reversible edits in src/engine_args.py, .runpod/hub.json, and aiwf.request.json to add RUNTIME_PROFILE and MODEL_PROFILE selectors, profile-based defaults for key engine args, and RunPod advanced dropdown exposure without changing upstream workflows.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0011",
+  "objective": "Fix fork-local RunPod Docker build failures in the nightly vLLM install step while preserving explicit nightly opt-in behavior and keeping rollback simple.",
+  "scope": "Apply minimal reversible edits in Dockerfile and aiwf.request.json only; keep stable install path unchanged, avoid upstream interaction, and preserve default nightly mode semantics.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "src/engine_args.py reads RUNTIME_PROFILE (safe|balanced|throughput) and MODEL_PROFILE (auto|qwen3_5_27b|general_7b|general_14b) and computes profile defaults for max_model_len, max_num_batched_tokens, max_num_seqs, gpu_memory_utilization, enforce_eager, language_model_only, and enable_chunked_prefill.",
-    "Explicit env vars for those fields retain highest precedence over computed profile defaults.",
-    "MODEL_PROFILE=auto resolves qwen3_5_27b for Qwen 3.5 models unless MODEL_PROFILE is explicitly set; runtime defaults to safe for >=14B or unknown model sizes.",
-    "Existing safety caps SAFE_MAX_MODEL_LEN_CAP and SAFE_MAX_NUM_BATCHED_TOKENS_CAP remain active for computed defaults.",
-    "Existing optional zero-to-None normalization for NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS remains unchanged.",
-    ".runpod/hub.json exposes RUNTIME_PROFILE and MODEL_PROFILE as advanced dropdown inputs with allowed options."
+    "Dockerfile nightly branch first attempts exact install of vllm==${VLLM_NIGHTLY_VERSION} from PyPI + wheels.vllm.ai/nightly.",
+    "If the pinned nightly install fails (e.g., wheel pruned or transient index error), Dockerfile retries pinned install once before falling back to latest nightly pre-release from the nightly index.",
+    "VLLM_NIGHTLY=true continues to enforce nightly-channel installs only; stable path remains gated behind VLLM_NIGHTLY=false.",
+    "No unrelated files or upstream remotes are modified."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
+    "python -c \"import json; json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print",
-    "git diff -- src/engine_args.py .runpod/hub.json aiwf.request.json"
+    "git diff -- Dockerfile aiwf.request.json"
   ],
-  "rollback_plan": "Fork-local rollback is one commit that removes profile selection helpers and profile default application in src/engine_args.py, removes RUNTIME_PROFILE and MODEL_PROFILE entries from .runpod/hub.json, and restores prior behavior where defaults were driven only by existing args/env logic. No upstream interactions.",
-  "deploy_plan": "Validate in this fork with py_compile, JSON parse checks, and docker buildx bake --print; then perform staged runtime rollout safe->balanced->throughput with a qwen3.5 and non-qwen smoke matrix before release tagging.",
-  "threat_model": "Risks: misclassified model profile causing aggressive defaults, runtime profile misuse increasing VRAM pressure, and silent behavior shifts. Mitigations: constrained profile option set, safe default for >=14B/unknown, explicit-env precedence, retained safety caps/chunked-prefill guardrails, and immediate fork-local rollback path.",
+  "rollback_plan": "Fork-local rollback is a single commit that restores the previous nightly install line in Dockerfile (remove retry/fallback grouping) and reverts aiwf.request.json to its prior request record. No upstream interactions.",
+  "deploy_plan": "Run py_compile, aiwf.request.json JSON parse check, and docker buildx bake --print in this fork; then build one nightly image path on RunPod and confirm vLLM import/startup before release tagging.",
+  "threat_model": "Risks: fallback to latest nightly can introduce non-deterministic dependency resolution when pinned wheel is unavailable, and broad fallback on install failure can hide root-cause drift. Mitigations: keep fallback confined to VLLM_NIGHTLY=true path, retain exact pinned attempt first (with retry), preserve explicit stable rollback path via VLLM_NIGHTLY=false, and keep rollback to one Dockerfile hunk revert.",
   "ambiguities": []
 }
