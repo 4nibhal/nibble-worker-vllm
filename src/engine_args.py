@@ -428,6 +428,15 @@ def get_engine_args():
     if args.get("max_num_batched_tokens") == 0:
         args["max_num_batched_tokens"] = None
 
+    # RunPod forms may send 0 for optional numeric fields; normalize to None
+    # where vLLM expects unset semantics instead of literal zero.
+    if args.get("num_gpu_blocks_override") == 0:
+        args["num_gpu_blocks_override"] = None
+    if args.get("max_parallel_loading_workers") == 0:
+        args["max_parallel_loading_workers"] = None
+    if args.get("max_cpu_loras") == 0:
+        args["max_cpu_loras"] = None
+
     max_model_len = args.get("max_model_len")
     explicit_max_model_len = os.getenv("MAX_MODEL_LEN") not in (
         None,

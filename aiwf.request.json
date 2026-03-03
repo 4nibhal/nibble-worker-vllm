@@ -1,27 +1,24 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0007",
-  "objective": "Prevent long-context models from stalling startup by capping auto-resolved max_model_len in addition to batching safeguards.",
-  "scope": "Apply minimal, reversible, fork-local runtime/config updates in src/engine_args.py, .runpod/hub.json, and aiwf.request.json only: add SAFE_MAX_MODEL_LEN_CAP for auto-resolved model lengths, retain SAFE_MAX_NUM_BATCHED_TOKENS_CAP protections, enforce chunked prefill safety for large contexts, and expose the new cap in hub advanced defaults.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0008",
+  "objective": "Fix engine-core startup crashes caused by zero-valued optional numeric fields being passed to vLLM as literal zeros.",
+  "scope": "Apply minimal, reversible, fork-local runtime updates in src/engine_args.py and aiwf.request.json: normalize RunPod form-supplied zero values to None for optional fields where vLLM expects unset semantics.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "src/engine_args.py caps auto-resolved max_model_len using SAFE_MAX_MODEL_LEN_CAP (default 32768) when MAX_MODEL_LEN is not explicitly set.",
-    "src/engine_args.py caps auto-derived max_num_batched_tokens using SAFE_MAX_NUM_BATCHED_TOKENS_CAP (default 8192) so large model max lengths do not become unsafe batch-token defaults.",
-    "src/engine_args.py forces enable_chunked_prefill=True when max_model_len exceeds 32768 and chunked prefill is disabled, unless ALLOW_UNSAFE_DISABLE_CHUNKED_PREFILL=true is explicitly set.",
-    "src/engine_args.py emits concise logs when runtime safety overrides are applied.",
-    ".runpod/hub.json sets ENABLE_CHUNKED_PREFILL default to true and lowers MAX_NUM_SEQS default to 16 for safer serverless behavior.",
-    ".runpod/hub.json includes advanced SAFE_MAX_MODEL_LEN_CAP (default 32768) and SAFE_MAX_NUM_BATCHED_TOKENS_CAP (default 8192) aligned to code.",
+    "src/engine_args.py converts num_gpu_blocks_override=0 to None before AsyncEngineArgs creation.",
+    "src/engine_args.py converts max_parallel_loading_workers=0 to None before AsyncEngineArgs creation.",
+    "src/engine_args.py converts max_cpu_loras=0 to None before AsyncEngineArgs creation.",
+    "Normalization remains fork-local and does not change explicit non-zero values.",
     "All edits remain fork-local, minimal, and reversible via documented rollback actions."
   ],
   "tests_expected": [
     "python -m py_compile src/engine_args.py",
-    "python -m json.tool .runpod/hub.json >/dev/null",
     "python -m json.tool aiwf.request.json >/dev/null",
-    "git diff -- src/engine_args.py .runpod/hub.json aiwf.request.json",
-    "Run a fork-local RunPod smoke test with a large-context model (e.g., Qwen 3.5 27B) to verify startup stability and no crash from unsafe batching defaults"
+    "git diff -- src/engine_args.py aiwf.request.json",
+    "Run a fork-local RunPod smoke test with qwen/qwen3.5-27b and verify EngineCore startup no longer fails with kv_cache ZeroDivisionError"
   ],
-  "rollback_plan": "Immediate rollback in this fork: remove SAFE_MAX_MODEL_LEN_CAP and SAFE_MAX_NUM_BATCHED_TOKENS_CAP logic plus large-context chunked-prefill enforcement from src/engine_args.py, restore .runpod/hub.json defaults (ENABLE_CHUNKED_PREFILL=false, MAX_NUM_SEQS=256, remove SAFE_* cap entries), and revert this exact three-file change set in one commit. Operational fallback without code rollback: set MAX_MODEL_LEN explicitly and tune SAFE_* caps per endpoint. No upstream operations required.",
-  "deploy_plan": "Validate in this fork only: run py_compile and JSON checks, inspect focused git diff, then run a fork-local RunPod smoke test on a long-context model to confirm the worker starts and serves without OOM/crash from auto-derived batching defaults.",
-  "threat_model": "Primary risks are throughput regression from tighter defaults, behavior changes for users who previously relied on very large implicit context windows, and misconfiguration of new safety cap env vars. Mitigations: conservative defaults (SAFE_MAX_MODEL_LEN_CAP=32768, SAFE_MAX_NUM_BATCHED_TOKENS_CAP=8192), explicit escape hatch for unsafe chunked-prefill disable, concise runtime logs for overrides, and single-commit rollback across only three files.",
+  "rollback_plan": "Immediate rollback in this fork: revert src/engine_args.py zero-normalization lines for num_gpu_blocks_override, max_parallel_loading_workers, and max_cpu_loras; revert this two-file change set in one commit. No upstream operations required.",
+  "deploy_plan": "Validate in this fork only: run py_compile + JSON checks, inspect focused diff, publish release, and perform RunPod smoke test using qwen/qwen3.5-27b with startup verification.",
+  "threat_model": "Primary risk is unintentionally changing semantics for users who intentionally set 0 on optional numeric knobs. Mitigation: only normalize known optional fields where vLLM treats unset semantics as safer than literal zero in serverless startup path; keep explicit non-zero user values untouched and rollback in one commit if regressions appear.",
   "ambiguities": []
 }
