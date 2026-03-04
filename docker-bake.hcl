@@ -10,6 +10,14 @@ variable "RELEASE_VERSION" {
   default = "latest"
 }
 
+variable "CUDA_IMAGE_TAG" {
+  default = "12.6.3-base-ubuntu22.04"
+}
+
+variable "PYTORCH_CUDA_INDEX" {
+  default = "cu126"
+}
+
 variable "HUGGINGFACE_ACCESS_TOKEN" {
   default = ""
 }
@@ -23,4 +31,8 @@ target "worker-vllm" {
   context = "."
   dockerfile = "Dockerfile"
   platforms = ["linux/amd64"]
+  args = {
+    CUDA_IMAGE_TAG = "${CUDA_IMAGE_TAG}"
+    PYTORCH_CUDA_INDEX = "${PYTORCH_CUDA_INDEX}"
+  }
 }

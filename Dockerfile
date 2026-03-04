@@ -1,12 +1,14 @@
-FROM nvidia/cuda:12.8.1-base-ubuntu22.04 
+ARG CUDA_IMAGE_TAG="12.6.3-base-ubuntu22.04"
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}
 
 RUN apt-get update -y \
     && apt-get install -y python3-pip
 
-RUN ldconfig /usr/local/cuda-12.8/compat/
+RUN ldconfig /usr/local/cuda/compat/
 
 ARG VLLM_NIGHTLY="false"
 ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev184+gae88468bc"
+ARG PYTORCH_CUDA_INDEX="cu126"
 
 # Install vLLM (deterministic stable default; pinned nightly optional)
 RUN python3 -m pip install --upgrade pip && \
@@ -15,7 +17,7 @@ RUN python3 -m pip install --upgrade pip && \
         apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
         python3 -m pip install git+https://github.com/huggingface/transformers.git; \
     else \
-        python3 -m pip install "vllm[flashinfer]==0.16.0" --extra-index-url https://download.pytorch.org/whl/cu128; \
+        python3 -m pip install "vllm[flashinfer]==0.16.0" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \
     fi
 
 

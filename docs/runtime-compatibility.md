@@ -22,6 +22,14 @@ Runtime parsing treats `"None"`, `"none"`, and `""` as unset values.
 
 Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset behavior.
 
+## CUDA host-driver compatibility
+
+- Default container base is CUDA 12.6 (`CUDA_IMAGE_TAG=12.6.3-base-ubuntu22.04`) with PyTorch wheels from `cu126`.
+- This avoids `nvidia-container-cli: requirement error` on fleets where host drivers do not satisfy CUDA 12.8+.
+- For older hosts, keep CUDA runtime and wheel index aligned when building:
+  - CUDA 12.4 hosts: `CUDA_IMAGE_TAG=12.4.1-base-ubuntu22.04` and `PYTORCH_CUDA_INDEX=cu124`.
+  - CUDA 12.6 hosts: keep defaults (`12.6.3` and `cu126`).
+
 ## Deployment gate checklist
 
 Run this gate before release or endpoint cutover:

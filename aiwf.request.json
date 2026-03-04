@@ -1,23 +1,22 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0020",
-  "objective": "Implement a fork-only hotfix and hardening set that prevents AsyncEngineArgs version-compat crashes and makes optional RunPod preset unset semantics explicit.",
-  "scope": "Apply minimal, reversible changes in this fork only to src/engine_args.py, .runpod/hub.json, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json. Ensure profile defaults only apply keys that exist in AsyncEngineArgs, switch optional preset override defaults to explicit 'None', document vLLM compatibility behavior and deployment checks, and add config_doctor warnings/errors for invalid optional override values and LANGUAGE_MODEL_ONLY compatibility risk.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0021",
+  "objective": "Apply a fork-only runtime compatibility hotfix to remove the CUDA 12.8 host-driver requirement that causes startup failure (`nvidia-container-cli requirement error`) while keeping vLLM behavior stable.",
+  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, docs/runtime-compatibility.md, README.md, and aiwf.request.json. Keep dependency/runtime alignment by matching CUDA base image and PyTorch wheel index build args.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "src/engine_args.py gates profile default application by AsyncEngineArgs.__dataclass_fields__ so unsupported fields (for example language_model_only on older vLLM) are skipped instead of causing AsyncEngineArgs initialization failures.",
-    ".runpod/hub.json presets use explicit string 'None' for NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS.",
-    "scripts/config_doctor.py errors when the three optional override keys are set to literal 0 and warns when values are neither unset sentinels ('', 'None', 'none') nor positive integers; it also warns when presets enable LANGUAGE_MODEL_ONLY due to mixed vLLM version risk.",
-    "docs/runtime-compatibility.md documents the vLLM language_model_only compatibility matrix, RunPod string env semantics, and deployment gate checklist (startup + one inference).",
-    "README.md links to docs/runtime-compatibility.md for quick operator access."
+    "Default container runtime no longer hard-requires CUDA 12.8 and uses CUDA 12.6-compatible base/image index defaults.",
+    "Build configuration exposes CUDA runtime and PyTorch wheel index as explicit build args for controlled rollback/override.",
+    "Operator docs explicitly state host-driver compatibility and the CUDA 12.4 override path.",
+    "Validation gate commands complete: py_compile, .runpod/hub.json JSON load, and docker buildx bake --print."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
-    "python scripts/config_doctor.py"
+    "python -c \"import json; json.load(open('.runpod/hub.json')); print('json ok')\"",
+    "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate fork-local rollback is git revert of this hotfix commit to restore prior profile-default injection behavior, previous preset unset markers, and previous config_doctor checks/docs. If startup or inference regressions appear after deploy, switch endpoint image tag back to the last known-good fork release while revert image rebuild and redeploy complete.",
-  "deploy_plan": "Deploy fork-only in a conservative staged rollout (1->2->4 workers). For each stage validate: cold start succeeds, worker accepts engine args without AsyncEngineArgs errors, and one representative inference request completes successfully before increasing traffic.",
-  "threat_model": "Primary risks are silent incompatibility across mixed vLLM versions and invalid optional override values causing runtime instability. Mitigations: dataclass-field-gated profile defaults, explicit unset sentinel values in presets, static config_doctor guardrails, and documented startup/inference deployment gates.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore prior CUDA 12.8 defaults (`CUDA_IMAGE_TAG=12.8.1-base-ubuntu22.04`, `PYTORCH_CUDA_INDEX=cu128`) in Dockerfile/docker-bake. Operational rollback is pinning endpoint image to the last known-good fork tag while revert image is rebuilt and redeployed.",
+  "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
+  "threat_model": "Main risks are binary/runtime mismatch when CUDA base image and wheel index diverge, and performance regressions from runtime downgrade. Mitigation: keep defaults aligned (`12.6.3` + `cu126`), document explicit override pairs, and require staged runtime validation.",
   "ambiguities": []
 }

@@ -40,7 +40,7 @@ Deploy OpenAI-Compatible Blazing-Fast LLM Endpoints powered by the [vLLM](https:
 **📦 Docker Image**: `runpod/worker-v1-vllm:<version>`
 
 - **Available Versions**: See [GitHub Releases](https://github.com/runpod-workers/worker-vllm/releases)
-- **CUDA Compatibility**: Requires CUDA >= 12.1
+- **CUDA Compatibility**: Default build requires host driver support for CUDA >= 12.6. For CUDA 12.4-only hosts, rebuild with `--build-arg CUDA_IMAGE_TAG=12.4.1-base-ubuntu22.04 --build-arg PYTORCH_CUDA_INDEX=cu124`.
 
 ### Configuration
 
@@ -128,7 +128,8 @@ To build an image with the model baked in, you must specify the following docker
   - `MODEL_REVISION`: Model revision to load (default: `main`).
   - `BASE_PATH`: Storage directory where huggingface cache and model will be located. (default: `/runpod-volume`, which will utilize network storage if you attach it or create a local directory within the image if you don't. If your intention is to bake the model into the image, you should set this to something like `/models` to make sure there are no issues if you were to accidentally attach network storage.)
   - `QUANTIZATION`
-  - `WORKER_CUDA_VERSION`: `12.1.0` (`12.1.0` is recommended for optimal performance).
+  - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-base-ubuntu22.04`).
+  - `PYTORCH_CUDA_INDEX`: PyTorch wheel index matching the CUDA runtime (default: `cu126`; use `cu124` with CUDA 12.4 builds).
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
   - `VLLM_NIGHTLY`: Set to `true` to replace the pinned vLLM release with the latest nightly build and the latest `transformers` from source. Useful for testing unreleased vLLM features. (default: `false`)
