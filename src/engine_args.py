@@ -692,9 +692,17 @@ def get_engine_args():
         "max_num_batched_tokens": True,
     }
     for key, value in profile_defaults.items():
+        if key not in valid_fields:
+            logging.info(
+                "Skipping profile default %s because current vLLM AsyncEngineArgs does not expose this field.",
+                key,
+            )
+            continue
         if key in local_overrides:
             continue
-        env_key = profile_env_map[key]
+        env_key = profile_env_map.get(key)
+        if env_key is None:
+            continue
         if _env_has_explicit_value(
             env_key,
             zero_means_unset=profile_zero_is_unset.get(key, False),

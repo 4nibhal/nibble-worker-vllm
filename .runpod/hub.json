@@ -26,9 +26,9 @@
           "LANGUAGE_MODEL_ONLY": true,
           "MAX_CONCURRENCY": 1,
           "MAX_NUM_SEQS": 1,
-          "NUM_GPU_BLOCKS_OVERRIDE": "",
-          "MAX_CPU_LORAS": "",
-          "MAX_PARALLEL_LOADING_WORKERS": ""
+          "NUM_GPU_BLOCKS_OVERRIDE": "None",
+          "MAX_CPU_LORAS": "None",
+          "MAX_PARALLEL_LOADING_WORKERS": "None"
         }
       },
       {
@@ -46,9 +46,9 @@
           "LANGUAGE_MODEL_ONLY": true,
           "MAX_CONCURRENCY": 2,
           "MAX_NUM_SEQS": 2,
-          "NUM_GPU_BLOCKS_OVERRIDE": "",
-          "MAX_CPU_LORAS": "",
-          "MAX_PARALLEL_LOADING_WORKERS": ""
+          "NUM_GPU_BLOCKS_OVERRIDE": "None",
+          "MAX_CPU_LORAS": "None",
+          "MAX_PARALLEL_LOADING_WORKERS": "None"
         }
       },
       {
@@ -66,9 +66,9 @@
           "LANGUAGE_MODEL_ONLY": true,
           "MAX_CONCURRENCY": 4,
           "MAX_NUM_SEQS": 4,
-          "NUM_GPU_BLOCKS_OVERRIDE": "",
-          "MAX_CPU_LORAS": "",
-          "MAX_PARALLEL_LOADING_WORKERS": ""
+          "NUM_GPU_BLOCKS_OVERRIDE": "None",
+          "MAX_CPU_LORAS": "None",
+          "MAX_PARALLEL_LOADING_WORKERS": "None"
         }
       },
       {
@@ -76,9 +76,9 @@
         "defaults": {
           "MODEL_NAME": "HuggingFaceTB/SmolLM2-135M-Instruct",
           "RUNTIME_PROFILE": "safe",
-          "NUM_GPU_BLOCKS_OVERRIDE": "",
-          "MAX_CPU_LORAS": "",
-          "MAX_PARALLEL_LOADING_WORKERS": ""
+          "NUM_GPU_BLOCKS_OVERRIDE": "None",
+          "MAX_CPU_LORAS": "None",
+          "MAX_PARALLEL_LOADING_WORKERS": "None"
         }
       }
     ],

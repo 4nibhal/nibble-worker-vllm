@@ -84,10 +84,12 @@ Use these presets as the default starting point for this fork:
 
 Safety warning: leave optional numeric overrides (`NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, `MAX_PARALLEL_LOADING_WORKERS`) empty/unset unless you have a clear tuning reason. Do not set these to `0`.
 
+For version and preset guardrails, see [Runtime Compatibility and Guardrails](docs/runtime-compatibility.md).
+
 ### Runtime Reliability Defaults
 
 - Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` to avoid runtime-only `flashinfer` NVCC build failures.
-- Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to empty values explicitly, so RunPod keeps them unset.
+- Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
 

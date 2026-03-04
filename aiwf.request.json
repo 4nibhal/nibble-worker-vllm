@@ -1,23 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0019",
-  "objective": "Implement fork-only reliability and quality optimization for RunPod vLLM to support Qwen3.5-27B at 128k context with minimal quality degradation and deterministic container behavior.",
-  "scope": "Apply minimal, reversible changes in this fork only to .runpod/hub.json, src/engine_args.py, Dockerfile, README.md, and aiwf.request.json: make Qwen presets explicitly 128k quality-first, keep optional numeric overrides explicitly unset, preserve strict invalid-zero override handling with added Qwen 128k guidance warnings, make Docker nightly build path deterministic and fail-fast when pinned nightly install fails, and document 128k quality mode guidance.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0020",
+  "objective": "Implement a fork-only hotfix and hardening set that prevents AsyncEngineArgs version-compat crashes and makes optional RunPod preset unset semantics explicit.",
+  "scope": "Apply minimal, reversible changes in this fork only to src/engine_args.py, .runpod/hub.json, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json. Ensure profile defaults only apply keys that exist in AsyncEngineArgs, switch optional preset override defaults to explicit 'None', document vLLM compatibility behavior and deployment checks, and add config_doctor warnings/errors for invalid optional override values and LANGUAGE_MODEL_ONLY compatibility risk.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    ".runpod/hub.json Qwen presets set MAX_MODEL_LEN=131072, SAFE_MAX_MODEL_LEN_CAP=131072, ATTENTION_BACKEND=FLASH_ATTN, KV_CACHE_DTYPE=auto, ENABLE_CHUNKED_PREFILL=true, LANGUAGE_MODEL_ONLY=true, and conservative MAX_CONCURRENCY/MAX_NUM_SEQS values (1/1 safe, 2/2 balanced, 4/4 throughput).",
-    ".runpod/hub.json keeps NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS as explicit empty strings and descriptions clearly state empty means unset and 0 is forbidden.",
-    "src/engine_args.py does not silently hide Qwen 128k degradation: it keeps strict zero-override handling and emits non-fatal quality guidance when effective MAX_MODEL_LEN is below 131072 for Qwen3.5.",
-    "Dockerfile defaults VLLM_NIGHTLY to false and removes floating nightly fallback so pinned nightly install failures fail the build.",
-    "README.md includes a short 128k quality mode section and notes KV fp8 as optional capacity mode with potential quality impact."
+    "src/engine_args.py gates profile default application by AsyncEngineArgs.__dataclass_fields__ so unsupported fields (for example language_model_only on older vLLM) are skipped instead of causing AsyncEngineArgs initialization failures.",
+    ".runpod/hub.json presets use explicit string 'None' for NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS.",
+    "scripts/config_doctor.py errors when the three optional override keys are set to literal 0 and warns when values are neither unset sentinels ('', 'None', 'none') nor positive integers; it also warns when presets enable LANGUAGE_MODEL_ONLY due to mixed vLLM version risk.",
+    "docs/runtime-compatibility.md documents the vLLM language_model_only compatibility matrix, RunPod string env semantics, and deployment gate checklist (startup + one inference).",
+    "README.md links to docs/runtime-compatibility.md for quick operator access."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "python scripts/config_doctor.py"
   ],
-  "rollback_plan": "Rollback path is an immediate fork-local revert of this change set (git revert of the runtime optimization commit) restoring previous .runpod/hub.json presets, prior src/engine_args.py guidance behavior, previous Dockerfile nightly default/fallback logic, and README/aiwf.request.json text. If runtime instability appears after deploy, roll back endpoint image tag to the last known-good fork release while revert build completes.",
-  "deploy_plan": "Deploy in staged fork-only rollout (1->2->4 workers) using Qwen safe preset first. Validate cold start, model load, and first-token latency at 128k settings, then run representative long-context prompts before shifting traffic to balanced and throughput presets.",
-  "threat_model": "Primary risks are quality regression from aggressive KV cache settings, hidden context cap regressions, and nondeterministic build outcomes from floating nightly installs. Mitigations: quality-first preset defaults (KV auto), explicit 128k caps, Qwen max-length guidance warnings, deterministic stable-default Docker path, and fail-fast pinned nightly install behavior.",
+  "rollback_plan": "Immediate fork-local rollback is git revert of this hotfix commit to restore prior profile-default injection behavior, previous preset unset markers, and previous config_doctor checks/docs. If startup or inference regressions appear after deploy, switch endpoint image tag back to the last known-good fork release while revert image rebuild and redeploy complete.",
+  "deploy_plan": "Deploy fork-only in a conservative staged rollout (1->2->4 workers). For each stage validate: cold start succeeds, worker accepts engine args without AsyncEngineArgs errors, and one representative inference request completes successfully before increasing traffic.",
+  "threat_model": "Primary risks are silent incompatibility across mixed vLLM versions and invalid optional override values causing runtime instability. Mitigations: dataclass-field-gated profile defaults, explicit unset sentinel values in presets, static config_doctor guardrails, and documented startup/inference deployment gates.",
   "ambiguities": []
 }

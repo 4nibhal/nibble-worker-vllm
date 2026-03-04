@@ -15,6 +15,8 @@ FORBIDDEN_ZERO_KEYS = {
     "MAX_PARALLEL_LOADING_WORKERS",
 }
 
+UNSET_OPTIONAL_VALUES = {"", "None", "none"}
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -62,6 +64,80 @@ def _check_forbidden_zeros(hub: dict[str, Any]) -> list[str]:
                 )
 
     return errors
+
+
+def _is_positive_int_or_string_int(value: Any) -> bool:
+    if isinstance(value, bool) or value is None:
+        return False
+    if isinstance(value, int):
+        return value > 0
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("+"):
+            stripped = stripped[1:]
+        return stripped.isdigit() and int(stripped) > 0
+    return False
+
+
+def _check_optional_override_values(hub: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    config = hub.get("config") if isinstance(hub, dict) else None
+    presets = config.get("presets") if isinstance(config, dict) else None
+
+    if not isinstance(presets, list):
+        return warnings
+
+    for preset in presets:
+        if not isinstance(preset, dict):
+            continue
+
+        preset_name = str(preset.get("name", "<unnamed>"))
+        defaults = preset.get("defaults")
+        if not isinstance(defaults, dict):
+            continue
+
+        for key in FORBIDDEN_ZERO_KEYS:
+            if key not in defaults:
+                continue
+            value = defaults.get(key)
+            if isinstance(value, str) and value.strip() in UNSET_OPTIONAL_VALUES:
+                continue
+            if _is_positive_int_or_string_int(value):
+                continue
+            warnings.append(
+                f"preset '{preset_name}' sets {key}={value!r}; expected one of '', 'None', 'none', or a positive integer"
+            )
+
+    return warnings
+
+
+def _warn_language_model_only_compat(hub: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    config = hub.get("config") if isinstance(hub, dict) else None
+    presets = config.get("presets") if isinstance(config, dict) else None
+
+    if not isinstance(presets, list):
+        return warnings
+
+    for preset in presets:
+        if not isinstance(preset, dict):
+            continue
+
+        preset_name = str(preset.get("name", "<unnamed>"))
+        defaults = preset.get("defaults")
+        if not isinstance(defaults, dict):
+            continue
+
+        raw_value = defaults.get("LANGUAGE_MODEL_ONLY")
+        enabled = raw_value is True or (
+            isinstance(raw_value, str) and raw_value.strip().lower() == "true"
+        )
+        if enabled:
+            warnings.append(
+                f"preset '{preset_name}' enables LANGUAGE_MODEL_ONLY; verify runtime uses vLLM >=0.16.1rc0 because older versions reject this arg"
+            )
+
+    return warnings
 
 
 def _warn_env_key_mismatch(hub: dict[str, Any]) -> list[str]:
@@ -139,6 +215,8 @@ def main() -> int:
 
     if isinstance(hub, dict):
         errors.extend(_check_forbidden_zeros(hub))
+        warnings.extend(_check_optional_override_values(hub))
+        warnings.extend(_warn_language_model_only_compat(hub))
         warnings.extend(_warn_env_key_mismatch(hub))
 
     for msg in errors:
