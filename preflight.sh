@@ -10,7 +10,7 @@ Usage: ./preflight.sh [--with-build] [--model <HF_MODEL_ID>] [--help]
 
 Low-cost default checks (fast/local):
   - python -m py_compile src/*.py handler.py
-  - JSON parse validation for aiwf.request.json and .runpod/hub.json
+  - lightweight runtime config contracts via scripts/config_doctor.py
   - docker buildx bake --print (writes output to /tmp)
 
 Optional heavier checks:
@@ -41,8 +41,8 @@ check_py_compile() {
   python -m py_compile src/*.py handler.py
 }
 
-check_json_parse() {
-  python -c "import json; json.load(open('aiwf.request.json')); json.load(open('.runpod/hub.json')); print('json ok')"
+check_config_doctor() {
+  python scripts/config_doctor.py
 }
 
 check_bake_print() {
@@ -101,7 +101,7 @@ done
 
 echo "Running preflight (default low-cost checks)."
 run_step "python compile" check_py_compile
-run_step "json parse" check_json_parse
+run_step "config doctor" check_config_doctor
 run_step "docker bake print" check_bake_print
 
 if [[ -n "${MODEL_ID}" ]]; then

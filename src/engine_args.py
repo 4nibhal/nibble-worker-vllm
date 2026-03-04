@@ -64,6 +64,24 @@ DEFAULT_ARGS = {
 SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT = 8192
 SAFE_MAX_MODEL_LEN_CAP_DEFAULT = 32768
 LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
+QWEN35_QUALITY_CONTEXT_TARGET = 131072
+STRICT_CONFIG_ENV_KEY = "STRICT_CONFIG"
+
+CRITICAL_NUMERIC_ENV_KEYS = {
+    "MAX_MODEL_LEN",
+    "MAX_NUM_BATCHED_TOKENS",
+    "NUM_GPU_BLOCKS_OVERRIDE",
+    "MAX_CPU_LORAS",
+    "MAX_PARALLEL_LOADING_WORKERS",
+    "SAFE_MAX_MODEL_LEN_CAP",
+    "SAFE_MAX_NUM_BATCHED_TOKENS_CAP",
+}
+
+KNOWN_BAD_ZERO_OPTIONAL_OVERRIDES = {
+    "NUM_GPU_BLOCKS_OVERRIDE": "num_gpu_blocks_override",
+    "MAX_PARALLEL_LOADING_WORKERS": "max_parallel_loading_workers",
+    "MAX_CPU_LORAS": "max_cpu_loras",
+}
 
 RUNTIME_PROFILE_SAFE = "safe"
 RUNTIME_PROFILE_BALANCED = "balanced"
@@ -154,6 +172,54 @@ PROFILE_DEFAULTS = {
 
 def _env_is_true(env_key: str) -> bool:
     return os.getenv(env_key, "").strip().lower() in ("true", "1", "yes", "on")
+
+
+def _strict_config_enabled() -> bool:
+    return _env_is_true(STRICT_CONFIG_ENV_KEY)
+
+
+def _handle_critical_numeric_parse_error(
+    env_key: str, raw_value: str, error: Exception
+) -> None:
+    is_critical = env_key in CRITICAL_NUMERIC_ENV_KEYS
+    scope = "critical numeric env" if is_critical else "env"
+    message = f"Invalid {scope} {env_key}={raw_value!r}: {error}"
+    if _strict_config_enabled() and is_critical:
+        raise ValueError(f"{message}. STRICT_CONFIG=true") from error
+    logging.warning("%s; ignoring invalid value", message)
+
+
+def _normalize_known_bad_zero_overrides(args: dict) -> None:
+    for env_key, arg_key in KNOWN_BAD_ZERO_OPTIONAL_OVERRIDES.items():
+        raw_value = os.getenv(env_key)
+        if raw_value is None:
+            continue
+        value = raw_value.strip()
+        if value in ("", "None", "none"):
+            continue
+        try:
+            numeric_value = int(value)
+        except ValueError as e:
+            _handle_critical_numeric_parse_error(env_key, raw_value, e)
+            continue
+
+        if numeric_value == 0:
+            message = (
+                f"{env_key}=0 is unsupported and treated as unset; "
+                "leave it empty/unset instead"
+            )
+            if _strict_config_enabled():
+                raise ValueError(f"{message} (STRICT_CONFIG=true)")
+            logging.warning(message)
+            args[arg_key] = None
+        elif numeric_value < 0:
+            message = (
+                f"{env_key}={numeric_value} is invalid; value must be positive or unset"
+            )
+            if _strict_config_enabled():
+                raise ValueError(f"{message} (STRICT_CONFIG=true)")
+            logging.warning("%s; treating as unset", message)
+            args[arg_key] = None
 
 
 def _env_has_explicit_value(env_key: str, zero_means_unset: bool = False) -> bool:
@@ -370,7 +436,7 @@ def _get_args_from_env_auto_discover() -> dict:
                 value, field_name, field.type
             )
         except (ValueError, TypeError, json.JSONDecodeError) as e:
-            logging.warning("Skip env %s=%r: %s", env_key, value, e)
+            _handle_critical_numeric_parse_error(env_key, value, e)
     return args
 
 
@@ -538,6 +604,16 @@ def _detect_cuda_runtime():
     return True, num_gpus, None
 
 
+def _device_env_is_explicit() -> bool:
+    raw = os.getenv("DEVICE")
+    if raw is None:
+        return False
+    value = raw.strip().lower()
+    if value in ("", "none", "auto"):
+        return False
+    return True
+
+
 def _local_args_to_engine_args(local: dict) -> dict:
     """Map local args (e.g. from /local_model_args.json) to engine arg names and filter."""
     valid = AsyncEngineArgs.__dataclass_fields__
@@ -639,7 +715,7 @@ def get_engine_args():
     if args.get("load_format") == "bitsandbytes":
         args["quantization"] = args["load_format"]
 
-    device_env_is_explicit = _env_has_explicit_value("DEVICE")
+    device_env_is_explicit = _device_env_is_explicit()
     cuda_runtime_available, num_gpus, cuda_probe_reason = _detect_cuda_runtime()
 
     if not device_env_is_explicit and not cuda_runtime_available:
@@ -682,14 +758,8 @@ def get_engine_args():
     if args.get("max_num_batched_tokens") == 0:
         args["max_num_batched_tokens"] = None
 
-    # RunPod forms may send 0 for optional numeric fields; normalize to None
-    # where vLLM expects unset semantics instead of literal zero.
-    if args.get("num_gpu_blocks_override") == 0:
-        args["num_gpu_blocks_override"] = None
-    if args.get("max_parallel_loading_workers") == 0:
-        args["max_parallel_loading_workers"] = None
-    if args.get("max_cpu_loras") == 0:
-        args["max_cpu_loras"] = None
+    # RunPod forms may send 0 for optional numeric fields where unset is required.
+    _normalize_known_bad_zero_overrides(args)
 
     max_model_len = args.get("max_model_len")
     explicit_max_model_len = os.getenv("MAX_MODEL_LEN") not in (
@@ -748,6 +818,33 @@ def get_engine_args():
                     )
                 max_model_len = model_len_cap
                 args["max_model_len"] = model_len_cap
+
+    if _is_qwen3_5_model(model_name):
+        requested_max_model_len = None
+        raw_requested_max_model_len = os.getenv("MAX_MODEL_LEN")
+        if raw_requested_max_model_len not in (None, "", "None", "none", "0"):
+            try:
+                requested_max_model_len = int(raw_requested_max_model_len)
+            except ValueError:
+                requested_max_model_len = None
+
+        if (
+            requested_max_model_len is not None
+            and requested_max_model_len >= QWEN35_QUALITY_CONTEXT_TARGET
+            and max_model_len is not None
+            and max_model_len < QWEN35_QUALITY_CONTEXT_TARGET
+        ):
+            logging.warning(
+                "Qwen3.5 quality guidance: requested MAX_MODEL_LEN=%d but effective max_model_len=%d; check SAFE_MAX_MODEL_LEN_CAP/model config caps.",
+                requested_max_model_len,
+                max_model_len,
+            )
+
+        if max_model_len is None or max_model_len < QWEN35_QUALITY_CONTEXT_TARGET:
+            logging.warning(
+                "Qwen3.5 quality guidance: MAX_MODEL_LEN=%s is below recommended 131072 for 128k context quality-first mode.",
+                max_model_len,
+            )
 
     explicit_max_num_batched_tokens = os.getenv("MAX_NUM_BATCHED_TOKENS") not in (
         None,

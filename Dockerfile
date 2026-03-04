@@ -5,15 +5,13 @@ RUN apt-get update -y \
 
 RUN ldconfig /usr/local/cuda-12.8/compat/
 
-ARG VLLM_NIGHTLY="true"
+ARG VLLM_NIGHTLY="false"
 ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev184+gae88468bc"
 
-# Install vLLM (nightly default-on; stable path kept for rollback)
+# Install vLLM (deterministic stable default; pinned nightly optional)
 RUN python3 -m pip install --upgrade pip && \
     if [ "${VLLM_NIGHTLY}" = "true" ]; then \
-        (python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly \
-        || python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly \
-        || python3 -m pip install "vllm" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly) && \
+        python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly && \
         apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
         python3 -m pip install git+https://github.com/huggingface/transformers.git; \
     else \

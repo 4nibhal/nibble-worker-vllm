@@ -84,6 +84,32 @@ Use these presets as the default starting point for this fork:
 
 Safety warning: leave optional numeric overrides (`NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, `MAX_PARALLEL_LOADING_WORKERS`) empty/unset unless you have a clear tuning reason. Do not set these to `0`.
 
+### Runtime Reliability Defaults
+
+- Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` to avoid runtime-only `flashinfer` NVCC build failures.
+- Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to empty values explicitly, so RunPod keeps them unset.
+- Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
+- Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
+
+### 128k Quality Mode (Qwen3.5-27B)
+
+For quality-first 128k context on Qwen3.5-27B, use:
+
+```bash
+MODEL_NAME=Qwen/Qwen3.5-27B
+MODEL_PROFILE=qwen3_5_27b
+MAX_MODEL_LEN=131072
+SAFE_MAX_MODEL_LEN_CAP=131072
+ATTENTION_BACKEND=FLASH_ATTN
+KV_CACHE_DTYPE=auto
+ENABLE_CHUNKED_PREFILL=true
+LANGUAGE_MODEL_ONLY=true
+MAX_CONCURRENCY=1
+MAX_NUM_SEQS=1
+```
+
+Rationale: this keeps long-context quality behavior conservative (no KV cache quantization by default) and avoids disabling safety guards needed for stable startup. `KV_CACHE_DTYPE=fp8` is an optional capacity mode and may increase capacity/throughput, but it can reduce output quality depending on workload.
+
 ## Option 2: Build Docker Image with Model Inside
 
 To build an image with the model baked in, you must specify the following docker arguments when building the image.

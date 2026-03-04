@@ -17,7 +17,18 @@
           "MODEL_NAME": "Qwen/Qwen3.5-27B",
           "TRUST_REMOTE_CODE": true,
           "MODEL_PROFILE": "qwen3_5_27b",
-          "RUNTIME_PROFILE": "safe"
+          "RUNTIME_PROFILE": "safe",
+          "MAX_MODEL_LEN": 131072,
+          "SAFE_MAX_MODEL_LEN_CAP": 131072,
+          "ATTENTION_BACKEND": "FLASH_ATTN",
+          "KV_CACHE_DTYPE": "auto",
+          "ENABLE_CHUNKED_PREFILL": true,
+          "LANGUAGE_MODEL_ONLY": true,
+          "MAX_CONCURRENCY": 1,
+          "MAX_NUM_SEQS": 1,
+          "NUM_GPU_BLOCKS_OVERRIDE": "",
+          "MAX_CPU_LORAS": "",
+          "MAX_PARALLEL_LOADING_WORKERS": ""
         }
       },
       {
@@ -26,7 +37,18 @@
           "MODEL_NAME": "Qwen/Qwen3.5-27B",
           "TRUST_REMOTE_CODE": true,
           "MODEL_PROFILE": "qwen3_5_27b",
-          "RUNTIME_PROFILE": "balanced"
+          "RUNTIME_PROFILE": "balanced",
+          "MAX_MODEL_LEN": 131072,
+          "SAFE_MAX_MODEL_LEN_CAP": 131072,
+          "ATTENTION_BACKEND": "FLASH_ATTN",
+          "KV_CACHE_DTYPE": "auto",
+          "ENABLE_CHUNKED_PREFILL": true,
+          "LANGUAGE_MODEL_ONLY": true,
+          "MAX_CONCURRENCY": 2,
+          "MAX_NUM_SEQS": 2,
+          "NUM_GPU_BLOCKS_OVERRIDE": "",
+          "MAX_CPU_LORAS": "",
+          "MAX_PARALLEL_LOADING_WORKERS": ""
         }
       },
       {
@@ -35,14 +57,28 @@
           "MODEL_NAME": "Qwen/Qwen3.5-27B",
           "TRUST_REMOTE_CODE": true,
           "MODEL_PROFILE": "qwen3_5_27b",
-          "RUNTIME_PROFILE": "throughput"
+          "RUNTIME_PROFILE": "throughput",
+          "MAX_MODEL_LEN": 131072,
+          "SAFE_MAX_MODEL_LEN_CAP": 131072,
+          "ATTENTION_BACKEND": "FLASH_ATTN",
+          "KV_CACHE_DTYPE": "auto",
+          "ENABLE_CHUNKED_PREFILL": true,
+          "LANGUAGE_MODEL_ONLY": true,
+          "MAX_CONCURRENCY": 4,
+          "MAX_NUM_SEQS": 4,
+          "NUM_GPU_BLOCKS_OVERRIDE": "",
+          "MAX_CPU_LORAS": "",
+          "MAX_PARALLEL_LOADING_WORKERS": ""
         }
       },
       {
         "name": "smollm2-compat-check",
         "defaults": {
           "MODEL_NAME": "HuggingFaceTB/SmolLM2-135M-Instruct",
-          "RUNTIME_PROFILE": "safe"
+          "RUNTIME_PROFILE": "safe",
+          "NUM_GPU_BLOCKS_OVERRIDE": "",
+          "MAX_CPU_LORAS": "",
+          "MAX_PARALLEL_LOADING_WORKERS": ""
         }
       }
     ],
@@ -335,7 +371,7 @@
         "input": {
           "name": "Max Parallel Loading Workers",
           "type": "number",
-          "description": "Load model sequentially in multiple batches. Leave empty/unset by default; do not use 0.",
+          "description": "Load model sequentially in multiple batches. Empty string means unset/default behavior; 0 is forbidden.",
           "advanced": true
         }
       },
@@ -374,7 +410,7 @@
         "input": {
           "name": "Num GPU Blocks Override",
           "type": "number",
-          "description": "If specified, ignore GPU profiling result and use this number of GPU blocks. Leave empty/unset by default; do not use 0.",
+          "description": "If specified, ignore GPU profiling result and use this number of GPU blocks. Empty string means unset/default behavior; 0 is forbidden.",
           "advanced": true
         }
       },
@@ -518,7 +554,7 @@
         "input": {
           "name": "Max CPU LoRAs",
           "type": "number",
-          "description": "Maximum number of LoRAs to store in CPU memory. Leave empty/unset by default; do not use 0.",
+          "description": "Maximum number of LoRAs to store in CPU memory. Empty string means unset/default behavior; 0 is forbidden.",
           "advanced": true
         }
       },
@@ -568,6 +604,15 @@
               "value": "xpu"
             }
           ],
+          "advanced": true
+        }
+      },
+      {
+        "key": "ATTENTION_BACKEND",
+        "input": {
+          "name": "Attention Backend",
+          "type": "string",
+          "description": "vLLM attention backend override. Leave empty for auto.",
           "advanced": true
         }
       },
@@ -763,12 +808,30 @@
         }
       },
       {
+        "key": "MIN_BATCH_SIZE",
+        "input": {
+          "name": "Min Batch Size",
+          "type": "number",
+          "description": "Preferred runtime key for minimum streaming batch size. Falls back to DEFAULT_MIN_BATCH_SIZE when unset.",
+          "advanced": true
+        }
+      },
+      {
         "key": "DEFAULT_BATCH_SIZE_GROWTH_FACTOR",
         "input": {
           "name": "Default Batch Size Growth Factor",
           "type": "number",
           "description": "Growth factor for dynamic batch size",
           "default": 3,
+          "advanced": true
+        }
+      },
+      {
+        "key": "BATCH_SIZE_GROWTH_FACTOR",
+        "input": {
+          "name": "Batch Size Growth Factor",
+          "type": "number",
+          "description": "Preferred runtime key for dynamic batch growth. Falls back to DEFAULT_BATCH_SIZE_GROWTH_FACTOR when unset.",
           "advanced": true
         }
       },
