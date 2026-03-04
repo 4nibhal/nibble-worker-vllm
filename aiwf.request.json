@@ -1,23 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0016",
-  "objective": "Fix remaining RunPod serverless startup failures by requiring a guarded CUDA usability probe before treating CUDA as available.",
-  "scope": "Apply a minimal follow-up runtime fix in src/engine_args.py: keep existing fast CUDA checks, add guarded CUDA init probe (current_device/get_device_properties) with RuntimeError/Exception handling, preserve explicit DEVICE override behavior, and keep multi-GPU auto behavior only for confirmed usable CUDA.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0017",
+  "objective": "Adapt RunPod Hub presets and docs for fork-focused Qwen deployment with safer defaults that prevent known configuration mistakes.",
+  "scope": "Apply minimal, reversible changes to .runpod/hub.json, README.md, and aiwf.request.json only: replace the old single preset with curated Qwen 3.5 and lightweight compatibility presets, remove forced DEVICE default from hub env metadata so runtime fallback logic can choose safely, keep optional numeric overrides unset by default, and add concise operator guidance in README.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "When DEVICE is explicitly set, engine args keep that value with no automatic override.",
-    "When DEVICE is not explicitly set and CUDA runtime is unavailable (is_available false, device_count 0, or guarded CUDA usability probe raises), engine args set device=cpu and log why.",
-    "When CUDA runtime is available, device auto behavior remains unchanged and no CPU forcing occurs.",
-    "Automatic multi-GPU tensor_parallel_size adjustment happens only when CUDA runtime is available and GPU count > 1.",
-    "Existing profile/default/cap/guardrail logic remains intact."
+    ".runpod/hub.json defines at least these presets: qwen35-h100-safe, qwen35-h100-balanced, qwen35-h100-throughput, smollm2-compat-check.",
+    "Each Qwen preset uses MODEL_NAME=Qwen/Qwen3.5-27B, TRUST_REMOTE_CODE=true, MODEL_PROFILE=qwen3_5_27b, and RUNTIME_PROFILE aligned with the preset name.",
+    "Hub metadata no longer forces DEVICE=auto by default.",
+    "NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, and MAX_PARALLEL_LOADING_WORKERS remain unset by default and explicitly warn to leave empty/unset and never set to 0.",
+    "README includes a concise preset-selection guide and warning about optional numeric overrides set to 0."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('aiwf.request.json')); print('json ok')\"",
+    "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Fork-local rollback is a single commit revert of src/engine_args.py and this request file, restoring previous CUDA detection behavior if probe-related false negatives or startup regressions are observed.",
-  "deploy_plan": "Deploy with conservative rollout 1->2->4; verify logs show probe-based CPU fallback in serverless checks with broken CUDA init and unchanged GPU path when CUDA probe succeeds.",
-  "threat_model": "Primary risk is false-negative CUDA detection causing lower performance from CPU fallback; mitigated by keeping fast checks unchanged, only adding guarded init verification, preserving explicit DEVICE overrides, and logging precise probe failure reasons.",
+  "rollback_plan": "Fork-local rollback is a single commit revert of .runpod/hub.json, README.md, and aiwf.request.json, restoring prior preset metadata and documentation if endpoint selection or startup behavior regresses.",
+  "deploy_plan": "Apply presets to new or cloned RunPod endpoints using staged rollout 1->2->4 workers; validate startup logs, model load success, and request latency for each Qwen profile before promoting throughput preset to wider traffic.",
+  "threat_model": "Primary risk is operator misconfiguration (wrong preset, forced device, or invalid numeric override values) causing startup or runtime instability; mitigated by curated presets, removal of forced DEVICE default, and explicit warnings to keep sensitive numeric overrides unset unless intentionally tuned.",
   "ambiguities": []
 }

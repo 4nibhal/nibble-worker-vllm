@@ -73,6 +73,17 @@ Any env var whose name matches a valid `AsyncEngineArgs` field (uppercased) is a
 
 For the complete list of all available environment variables, examples, and detailed descriptions: **[Configuration](docs/configuration.md)**
 
+### Fork Preset Recommendations (RunPod Hub)
+
+Use these presets as the default starting point for this fork:
+
+- `qwen35-h100-safe`: most conservative Qwen 3.5 27B startup defaults.
+- `qwen35-h100-balanced`: recommended default for mixed latency/throughput.
+- `qwen35-h100-throughput`: higher-throughput profile when load is stable.
+- `smollm2-compat-check`: lightweight compatibility and startup sanity checks.
+
+Safety warning: leave optional numeric overrides (`NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, `MAX_PARALLEL_LOADING_WORKERS`) empty/unset unless you have a clear tuning reason. Do not set these to `0`.
+
 ## Option 2: Build Docker Image with Model Inside
 
 To build an image with the model baked in, you must specify the following docker arguments when building the image.

@@ -12,9 +12,37 @@
     "allowedCudaVersions": ["12.9", "12.8"],
     "presets": [
       {
-        "name": "deepseek-ai/deepseek-r1-distill-llama-8b",
+        "name": "qwen35-h100-safe",
         "defaults": {
-          "MODEL_NAME": "deepseek-ai/deepseek-r1-distill-llama-8b"
+          "MODEL_NAME": "Qwen/Qwen3.5-27B",
+          "TRUST_REMOTE_CODE": true,
+          "MODEL_PROFILE": "qwen3_5_27b",
+          "RUNTIME_PROFILE": "safe"
+        }
+      },
+      {
+        "name": "qwen35-h100-balanced",
+        "defaults": {
+          "MODEL_NAME": "Qwen/Qwen3.5-27B",
+          "TRUST_REMOTE_CODE": true,
+          "MODEL_PROFILE": "qwen3_5_27b",
+          "RUNTIME_PROFILE": "balanced"
+        }
+      },
+      {
+        "name": "qwen35-h100-throughput",
+        "defaults": {
+          "MODEL_NAME": "Qwen/Qwen3.5-27B",
+          "TRUST_REMOTE_CODE": true,
+          "MODEL_PROFILE": "qwen3_5_27b",
+          "RUNTIME_PROFILE": "throughput"
+        }
+      },
+      {
+        "name": "smollm2-compat-check",
+        "defaults": {
+          "MODEL_NAME": "HuggingFaceTB/SmolLM2-135M-Instruct",
+          "RUNTIME_PROFILE": "safe"
         }
       }
     ],
@@ -307,7 +335,7 @@
         "input": {
           "name": "Max Parallel Loading Workers",
           "type": "number",
-          "description": "Load model sequentially in multiple batches.",
+          "description": "Load model sequentially in multiple batches. Leave empty/unset by default; do not use 0.",
           "advanced": true
         }
       },
@@ -346,7 +374,7 @@
         "input": {
           "name": "Num GPU Blocks Override",
           "type": "number",
-          "description": "If specified, ignore GPU profiling result and use this number of GPU blocks.",
+          "description": "If specified, ignore GPU profiling result and use this number of GPU blocks. Leave empty/unset by default; do not use 0.",
           "advanced": true
         }
       },
@@ -490,7 +518,7 @@
         "input": {
           "name": "Max CPU LoRAs",
           "type": "number",
-          "description": "Maximum number of LoRAs to store in CPU memory.",
+          "description": "Maximum number of LoRAs to store in CPU memory. Leave empty/unset by default; do not use 0.",
           "advanced": true
         }
       },
@@ -540,7 +568,6 @@
               "value": "xpu"
             }
           ],
-          "default": "auto",
           "advanced": true
         }
       },
