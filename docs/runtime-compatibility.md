@@ -4,8 +4,12 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 
 ## vLLM AsyncEngineArgs compatibility
 
-- vLLM `<0.16.1`: `language_model_only` is not available in `AsyncEngineArgs`.
-- vLLM `>=0.16.1`: `language_model_only` is supported.
+- Stable vLLM `0.16.0`: `language_model_only` is not available in `AsyncEngineArgs`.
+- Fork pinned nightly `0.16.1rc1.dev257+g3b23d57c9`: `language_model_only` is available for Qwen3.5 text-only startup.
+- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.16.1rc1.dev257+g3b23d57c9`.
+- Default nightly path pins `transformers` by immutable git ref via `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917`.
+- Stable override remains supported via `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`.
+- Override mechanism: pass `--build-arg TRANSFORMERS_REF=<commit-sha>` (or set bake var `TRANSFORMERS_REF`) when validating a different transformers revision.
 - Worker behavior: profile defaults are applied only when the target key exists in `AsyncEngineArgs.__dataclass_fields__`.
 - Qwen3.5 guard: startup now fails fast with an actionable error if `MODEL_NAME` targets Qwen3.5 but runtime does not expose `language_model_only` or if `LANGUAGE_MODEL_ONLY` is not true.
 

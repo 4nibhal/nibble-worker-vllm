@@ -89,7 +89,9 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 ### Runtime Reliability Defaults
 
 - Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` to avoid runtime-only `flashinfer` NVCC build failures.
-- Default image pin is `vllm[flashinfer]==0.16.1` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
+- Default image path uses pinned nightly `vllm==0.16.1rc1.dev257+g3b23d57c9` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
+- Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
+- Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
 - Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
@@ -132,10 +134,12 @@ To build an image with the model baked in, you must specify the following docker
   - `QUANTIZATION`
   - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-base-ubuntu22.04`).
   - `PYTORCH_CUDA_INDEX`: PyTorch wheel index matching the CUDA runtime (default: `cu126`; use `cu124` with CUDA 12.4 builds).
-  - `VLLM_VERSION`: Stable vLLM package version (default: `0.16.1`; must stay pinned, no floating pre-release).
+  - `VLLM_VERSION`: Stable vLLM package version (default: `0.16.0`; only used when `VLLM_NIGHTLY=false`; keep pinned).
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
-  - `VLLM_NIGHTLY`: Set to `true` to replace the pinned vLLM release with the latest nightly build and the latest `transformers` from source. Useful for testing unreleased vLLM features. (default: `false`)
+  - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
+  - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev257+g3b23d57c9`; must stay exact/pinned).
+  - `TRANSFORMERS_REF`: Immutable transformers git ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides).
 
 For the remaining settings, you may apply them as environment variables when running the container. Supported environment variables are listed in the [Environment Variables](#environment-variables) section.
 
@@ -147,10 +151,22 @@ docker build -t username/image:tag --build-arg MODEL_NAME="openchat/openchat_3.5
 
 ### Example: Building with vLLM Nightly
 
-To use the latest unreleased vLLM build (installs from the nightly wheel index and `transformers` from source):
+Default builds already use the pinned nightly path. To force stable instead:
 
 ```bash
-docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true .
+docker build -t username/image:tag --build-arg VLLM_NIGHTLY=false --build-arg VLLM_VERSION=0.16.0 .
+```
+
+To override nightly with the fork's pinned nightly build explicitly:
+
+```bash
+docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true --build-arg VLLM_NIGHTLY_VERSION=0.16.1rc1.dev257+g3b23d57c9 --build-arg TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917 .
+```
+
+To test a different transformers revision on nightly builds, override only `TRANSFORMERS_REF`:
+
+```bash
+docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true --build-arg TRANSFORMERS_REF=<transformers-commit-sha> .
 ```
 
 You can combine it with other arguments:

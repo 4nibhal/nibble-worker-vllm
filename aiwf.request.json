@@ -1,12 +1,13 @@
 {
   "version": 1,
   "request_id": "REQ-NIBBLE-WORKER-VLLM-0022",
-  "objective": "Apply a fork-only production hotfix so the default image/presets boot with Qwen/Qwen3.5-27B by pinning a language_model_only-capable vLLM build and adding a clear fail-fast guard for incompatible runtimes.",
+  "objective": "Apply a fork-only runtime correction to remove nonexistent stable vLLM 0.16.1 references, default this image path to a pinned nightly build that supports Qwen3.5 language_model_only startup, and keep deterministic stable override support at vLLM 0.16.0.",
   "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Default image pins stable vLLM to 0.16.1 (deterministic) so Qwen3.5 text-only path (`LANGUAGE_MODEL_ONLY=true`) is available.",
-    "Build configuration exposes VLLM_VERSION as explicit pinned build arg for controlled rollback/override.",
+    "Default image path pins nightly vLLM to 0.16.1rc1.dev257+g3b23d57c9 (deterministic) so Qwen3.5 text-only path (`LANGUAGE_MODEL_ONLY=true`) is available.",
+    "Default nightly path pins transformers to immutable `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` and exposes this as an explicit Docker/buildx override.",
+    "Build configuration keeps explicit stable override at VLLM_VERSION=0.16.0 when VLLM_NIGHTLY=false.",
     "Engine arg parsing fails fast with an actionable error when Qwen3.5 is selected but runtime lacks language_model_only support or it is disabled.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
@@ -16,8 +17,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore the previous vLLM pin and remove the Qwen3.5 fail-fast guard. If partial rollback is needed, set `VLLM_VERSION=0.16.0` at build time and switch production presets away from `Qwen/Qwen3.5-27B` until a compatible image is redeployed. Operational rollback is pinning endpoint image to the last known-good fork tag while rebuild/redeploy completes.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this correction commit. Operational fast rollback without code revert is to build/deploy with `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`, or keep nightly enabled while reverting only `TRANSFORMERS_REF` to a previously validated commit SHA, then switch production presets away from `Qwen/Qwen3.5-27B` (or disable LANGUAGE_MODEL_ONLY-dependent paths) until a compatible nightly image is redeployed. Endpoint-level rollback remains pinning to the last known-good fork tag while rebuild/redeploy completes.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are behavior changes from vLLM version shift and false-positive startup blocks from stricter Qwen3.5 validation. Mitigation: pin exact stable version (`0.16.1`), keep changes narrow to startup argument validation, expose build arg for controlled rollback, and require staged runtime validation.",
+  "threat_model": "Main risks are runtime behavior changes from defaulting to nightly and false-positive startup blocks from stricter Qwen3.5 validation. Mitigation: pin exact nightly version (`0.16.1rc1.dev257+g3b23d57c9`), keep explicit stable override (`0.16.0`) for deterministic fallback, keep code changes narrow to messaging/compatibility guards, and require staged runtime validation.",
   "ambiguities": []
 }

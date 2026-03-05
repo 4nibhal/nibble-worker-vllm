@@ -6,17 +6,18 @@ RUN apt-get update -y \
 
 RUN ldconfig /usr/local/cuda/compat/
 
-ARG VLLM_NIGHTLY="false"
-ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev184+gae88468bc"
-ARG VLLM_VERSION="0.16.1"
+ARG VLLM_NIGHTLY="true"
+ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev257+g3b23d57c9"
+ARG TRANSFORMERS_REF="421c7f6248e28d24d84ee000252a1e71fbc24917"
+ARG VLLM_VERSION="0.16.0"
 ARG PYTORCH_CUDA_INDEX="cu126"
 
-# Install vLLM (deterministic stable default; pinned nightly optional)
+# Install vLLM (deterministic pinned nightly default; pinned stable override optional)
 RUN python3 -m pip install --upgrade pip && \
     if [ "${VLLM_NIGHTLY}" = "true" ]; then \
         python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly && \
         apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
-        python3 -m pip install git+https://github.com/huggingface/transformers.git; \
+        python3 -m pip install "git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"; \
     else \
         python3 -m pip install "vllm[flashinfer]==${VLLM_VERSION}" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \
     fi

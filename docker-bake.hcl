@@ -19,7 +19,19 @@ variable "PYTORCH_CUDA_INDEX" {
 }
 
 variable "VLLM_VERSION" {
-  default = "0.16.1"
+  default = "0.16.0"
+}
+
+variable "VLLM_NIGHTLY" {
+  default = "true"
+}
+
+variable "VLLM_NIGHTLY_VERSION" {
+  default = "0.16.1rc1.dev257+g3b23d57c9"
+}
+
+variable "TRANSFORMERS_REF" {
+  default = "421c7f6248e28d24d84ee000252a1e71fbc24917"
 }
 
 variable "HUGGINGFACE_ACCESS_TOKEN" {
@@ -38,6 +50,9 @@ target "worker-vllm" {
   args = {
     CUDA_IMAGE_TAG = "${CUDA_IMAGE_TAG}"
     PYTORCH_CUDA_INDEX = "${PYTORCH_CUDA_INDEX}"
+    VLLM_NIGHTLY = "${VLLM_NIGHTLY}"
+    VLLM_NIGHTLY_VERSION = "${VLLM_NIGHTLY_VERSION}"
+    TRANSFORMERS_REF = "${TRANSFORMERS_REF}"
     VLLM_VERSION = "${VLLM_VERSION}"
   }
 }
