@@ -13,6 +13,14 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 - Worker behavior: profile defaults are applied only when the target key exists in `AsyncEngineArgs.__dataclass_fields__`.
 - Qwen3.5 guard: startup now fails fast with an actionable error if `MODEL_NAME` targets Qwen3.5 but runtime does not expose `language_model_only` or if `LANGUAGE_MODEL_ONLY` is not true.
 
+## FlashInfer prefill reliability guard
+
+- Root cause observed on some H100 runtime paths: FLASHINFER prefill triggers JIT compile (`ninja ... gdn_prefill_sm90`) and exits `127` when nvcc/toolchain binaries are missing.
+- Default worker behavior is now deterministic: `DISABLE_FLASHINFER_PREFILL=true` by default, and runtime sets `ATTENTION_BACKEND=FLASH_ATTN` when backend is not explicitly set.
+- If `ATTENTION_BACKEND=FLASHINFER` is requested while `DISABLE_FLASHINFER_PREFILL=true`, worker overrides to `FLASH_ATTN` with a warning.
+- If user explicitly opts in (`DISABLE_FLASHINFER_PREFILL=false`) but toolchain probe cannot find `nvcc`, `ninja`, or a C++ compiler, worker still forces `FLASH_ATTN` and warns.
+- Explicit opt-in path (only when toolchain is present): set both `DISABLE_FLASHINFER_PREFILL=false` and `ATTENTION_BACKEND=FLASHINFER`.
+
 ## RunPod env value handling
 
 RunPod stores environment values as strings in hub presets and endpoint config.
@@ -31,6 +39,7 @@ Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset 
 
 - Default container base is CUDA 12.6 (`CUDA_IMAGE_TAG=12.6.3-base-ubuntu22.04`) with PyTorch wheels from `cu126`.
 - This avoids `nvidia-container-cli: requirement error` on fleets where host drivers do not satisfy CUDA 12.8+.
+- Runtime image path does not assume full CUDA build toolchain availability at startup; this is why FLASHINFER prefill JIT is guarded by default.
 - For older hosts, keep CUDA runtime and wheel index aligned when building:
   - CUDA 12.4 hosts: `CUDA_IMAGE_TAG=12.4.1-base-ubuntu22.04` and `PYTORCH_CUDA_INDEX=cu124`.
   - CUDA 12.6 hosts: keep defaults (`12.6.3` and `cu126`).

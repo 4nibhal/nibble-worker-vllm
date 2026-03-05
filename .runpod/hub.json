@@ -21,6 +21,7 @@
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
           "ATTENTION_BACKEND": "FLASH_ATTN",
+          "DISABLE_FLASHINFER_PREFILL": true,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -41,6 +42,7 @@
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
           "ATTENTION_BACKEND": "FLASH_ATTN",
+          "DISABLE_FLASHINFER_PREFILL": true,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -61,6 +63,7 @@
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
           "ATTENTION_BACKEND": "FLASH_ATTN",
+          "DISABLE_FLASHINFER_PREFILL": true,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -612,7 +615,17 @@
         "input": {
           "name": "Attention Backend",
           "type": "string",
-          "description": "vLLM attention backend override. Leave empty for auto.",
+          "description": "vLLM attention backend override. Leave empty for runtime-safe default (`FLASH_ATTN`). When DISABLE_FLASHINFER_PREFILL=true, FLASHINFER is overridden.",
+          "advanced": true
+        }
+      },
+      {
+        "key": "DISABLE_FLASHINFER_PREFILL",
+        "input": {
+          "name": "Disable FlashInfer Prefill",
+          "type": "boolean",
+          "description": "Disable FLASHINFER prefill JIT by default to avoid startup failures on runtime images without nvcc/ninja toolchain. Set false only to opt in.",
+          "default": true,
           "advanced": true
         }
       },

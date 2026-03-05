@@ -14,7 +14,16 @@ metadata:
 - [Task affects upstream runpod-workers/worker-vllm directly] -> [FORBIDDEN; implement and validate in this fork only]
 - [Request mentions upstream sync/rebase/merge/cherry-pick/fetch/pull against runpod-workers/worker-vllm] -> [OUT OF SCOPE and FORBIDDEN; do not interact with upstream from this repository]
 - [Change/release flow targets remotes] -> [Use fork remote (origin) only for write operations and releases; upstream is manual read-only reference]
+- [Publishing build/release artifacts] -> [REQUIRED: push/tag/release only on origin; never publish from or to upstream]
 - [Change not required for objective] -> [DO NOT modify]
+
+## Canonical References (Source Of Truth)
+- RunPod Serverless overview: https://docs.runpod.io/serverless/overview
+- RunPod vLLM overview: https://docs.runpod.io/serverless/vllm/overview
+- RunPod vLLM environment variables: https://docs.runpod.io/serverless/vllm/environment-variables
+- vLLM docs: https://docs.vllm.ai/
+- vLLM repository/tags: https://github.com/vllm-project/vllm
+- Qwen3.5-27B model card: https://huggingface.co/Qwen/Qwen3.5-27B
 
 ## Scope Boundaries
 - [Path starts with ai-workflow/] -> [Treat as framework source; do not modify unless explicitly requested]
@@ -31,10 +40,13 @@ metadata:
 ## Runtime Guardrails
 - [Setting optional vLLM env NUM_GPU_BLOCKS_OVERRIDE, MAX_CPU_LORAS, or MAX_PARALLEL_LOADING_WORKERS to 0] -> [FORBIDDEN; use empty/unset value instead]
 - [Using pre-release/nightly dependency] -> [Pin exact nightly/pre-release version; do not use floating ranges]
+- [Runtime/container/versioning decision is made] -> [Validate against Canonical References and record exact versions in docs/runtime-compatibility.md]
+- [Claim about package/version support is uncertain] -> [Treat as unverified; check source docs/release metadata before changing defaults]
 - [Model size is >=14B or unknown and RUNTIME_PROFILE is not explicit] -> [Default RUNTIME_PROFILE=safe]
 - [max_model_len is profile/auto-computed and model-derived context limit is available] -> [Clamp max_model_len to derived context limit; MUST NOT exceed it]
 - [Model size inference from model id is required] -> [Support common size suffixes at least B and M; unknown remains safe path]
 - [Model family is Qwen 3.5 and MODEL_PROFILE override is not explicit] -> [Force MODEL_PROFILE=qwen3_5_27b]
+- [Model family is Qwen 3.5 on runtime path] -> [Keep LANGUAGE_MODEL_ONLY=true and use a vLLM build that exposes AsyncEngineArgs.language_model_only]
 - [Large-context runtime path and no explicit escape hatch] -> [Keep ENABLE_CHUNKED_PREFILL=true]
 - [Production runtime requires Hugging Face auth token] -> [Prefer HUGGINGFACE_ACCESS_TOKEN or supported token aliases]
 - [Concurrency tuning plan is unspecified] -> [Start conservative and scale in stages 1->2->4]

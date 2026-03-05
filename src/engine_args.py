@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import re
+import shutil
 from typing import get_origin, get_args
 from vllm import AsyncEngineArgs
 
@@ -71,6 +72,9 @@ SAFE_MAX_MODEL_LEN_CAP_DEFAULT = 32768
 LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
 QWEN35_QUALITY_CONTEXT_TARGET = 131072
 STRICT_CONFIG_ENV_KEY = "STRICT_CONFIG"
+DISABLE_FLASHINFER_PREFILL_ENV_KEY = "DISABLE_FLASHINFER_PREFILL"
+FLASH_ATTN_BACKEND = "FLASH_ATTN"
+FLASHINFER_BACKEND = "FLASHINFER"
 
 CRITICAL_NUMERIC_ENV_KEYS = {
     "MAX_MODEL_LEN",
@@ -181,6 +185,45 @@ def _env_is_true(env_key: str) -> bool:
 
 def _strict_config_enabled() -> bool:
     return _env_is_true(STRICT_CONFIG_ENV_KEY)
+
+
+def _env_bool_with_default(env_key: str, default: bool) -> bool:
+    raw_value = os.getenv(env_key)
+    if raw_value is None:
+        return default
+    value = raw_value.strip().lower()
+    if value in ("", "none"):
+        return default
+    if value in ("true", "1", "yes", "on"):
+        return True
+    if value in ("false", "0", "no", "off"):
+        return False
+    logging.warning(
+        "Invalid boolean %s=%r; using default %s",
+        env_key,
+        raw_value,
+        default,
+    )
+    return default
+
+
+def _normalize_attention_backend(value: str) -> str:
+    return str(value).strip().upper().replace("-", "_")
+
+
+def _is_flashinfer_backend(value: str) -> bool:
+    return _normalize_attention_backend(value) == FLASHINFER_BACKEND
+
+
+def _detect_flashinfer_build_toolchain() -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    if not shutil.which("ninja"):
+        missing.append("ninja")
+    if not shutil.which("nvcc"):
+        missing.append("nvcc")
+    if not (shutil.which("g++") or shutil.which("c++") or shutil.which("gcc")):
+        missing.append("c++ compiler")
+    return len(missing) == 0, missing
 
 
 def _handle_critical_numeric_parse_error(
@@ -932,14 +975,56 @@ def get_engine_args():
                 max_model_len,
             )
 
+    supports_attention_backend = "attention_backend" in valid_fields
+
     # VLLM_ATTENTION_BACKEND is deprecated, migrate to attention_backend
     if os.getenv("VLLM_ATTENTION_BACKEND"):
         logging.warning(
             "VLLM_ATTENTION_BACKEND env var is deprecated. "
             "Use ATTENTION_BACKEND instead (maps to --attention-backend CLI arg)."
         )
-        if not args.get("attention_backend"):
+        if supports_attention_backend and not args.get("attention_backend"):
             args["attention_backend"] = os.getenv("VLLM_ATTENTION_BACKEND")
+
+    disable_flashinfer_prefill = _env_bool_with_default(
+        DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+        True,
+    )
+
+    if supports_attention_backend and disable_flashinfer_prefill:
+        attention_backend = args.get("attention_backend")
+        if attention_backend is None:
+            args["attention_backend"] = FLASH_ATTN_BACKEND
+            logging.info(
+                "Default runtime safety: set attention_backend=%s because %s defaults to true. "
+                "Set %s=false and ATTENTION_BACKEND=FLASHINFER only when toolchain is available.",
+                FLASH_ATTN_BACKEND,
+                DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+                DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+            )
+        elif _is_flashinfer_backend(attention_backend):
+            args["attention_backend"] = FLASH_ATTN_BACKEND
+            logging.warning(
+                "Overriding ATTENTION_BACKEND=%s to %s because %s defaults to true. "
+                "Set %s=false to opt in.",
+                attention_backend,
+                FLASH_ATTN_BACKEND,
+                DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+                DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+            )
+
+    if supports_attention_backend and _is_flashinfer_backend(
+        args.get("attention_backend", "")
+    ):
+        toolchain_ready, missing_tools = _detect_flashinfer_build_toolchain()
+        if not toolchain_ready:
+            args["attention_backend"] = FLASH_ATTN_BACKEND
+            logging.warning(
+                "FlashInfer prefill requested but build toolchain is incomplete (%s). "
+                "Forcing attention_backend=%s to avoid JIT startup failures.",
+                ", ".join(missing_tools),
+                FLASH_ATTN_BACKEND,
+            )
 
     # DISABLE_LOG_REQUESTS is deprecated, use ENABLE_LOG_REQUESTS instead
     if os.getenv("DISABLE_LOG_REQUESTS"):

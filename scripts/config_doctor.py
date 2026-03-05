@@ -140,6 +140,71 @@ def _warn_language_model_only_compat(hub: dict[str, Any]) -> list[str]:
     return warnings
 
 
+def _as_bool_with_default(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
+def _is_qwen35_model_name(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.lower().replace("-", "").replace("_", "")
+    return "qwen3.5" in value.lower() or "qwen35" in normalized
+
+
+def _is_flashinfer_backend(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().upper().replace("-", "_")
+    return normalized == "FLASHINFER"
+
+
+def _warn_flashinfer_prefill_risk(hub: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    config = hub.get("config") if isinstance(hub, dict) else None
+    presets = config.get("presets") if isinstance(config, dict) else None
+
+    if not isinstance(presets, list):
+        return warnings
+
+    for preset in presets:
+        if not isinstance(preset, dict):
+            continue
+
+        preset_name = str(preset.get("name", "<unnamed>"))
+        defaults = preset.get("defaults")
+        if not isinstance(defaults, dict):
+            continue
+
+        if not _is_qwen35_model_name(defaults.get("MODEL_NAME")):
+            continue
+
+        disable_prefill = _as_bool_with_default(
+            defaults.get("DISABLE_FLASHINFER_PREFILL"),
+            True,
+        )
+        attention_backend = defaults.get("ATTENTION_BACKEND")
+        if disable_prefill:
+            continue
+        if not _is_flashinfer_backend(attention_backend):
+            continue
+
+        warnings.append(
+            f"preset '{preset_name}' enables FLASHINFER prefill on Qwen3.5 "
+            "(DISABLE_FLASHINFER_PREFILL=false + ATTENTION_BACKEND=FLASHINFER); "
+            "runtime image is likely toolchain-less (missing nvcc/ninja), so startup may fail with gdn_prefill_sm90 JIT exit 127"
+        )
+
+    return warnings
+
+
 def _warn_env_key_mismatch(hub: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     config = hub.get("config") if isinstance(hub, dict) else None
@@ -217,6 +282,7 @@ def main() -> int:
         errors.extend(_check_forbidden_zeros(hub))
         warnings.extend(_check_optional_override_values(hub))
         warnings.extend(_warn_language_model_only_compat(hub))
+        warnings.extend(_warn_flashinfer_prefill_risk(hub))
         warnings.extend(_warn_env_key_mismatch(hub))
 
     for msg in errors:

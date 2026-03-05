@@ -68,6 +68,7 @@ Configure worker-vllm using environment variables:
 | `MAX_MODEL_LEN`           | `max_model_len`          | `4096`        |
 | `ENFORCE_EAGER`           | `enforce_eager`          | `true`        |
 | `ENABLE_CHUNKED_PREFILL`  | `enable_chunked_prefill` | `true`        |
+| `DISABLE_FLASHINFER_PREFILL` | worker runtime guard   | `true`        |
 
 Any env var whose name matches a valid `AsyncEngineArgs` field (uppercased) is applied automatically. Backward-compat aliases: `MODEL_NAME`, `TOKENIZER_NAME`, `MAX_CONTEXT_LEN_TO_CAPTURE`. This lets you configure any vLLM option without waiting for explicit worker support.
 
@@ -88,7 +89,8 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 
 ### Runtime Reliability Defaults
 
-- Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` to avoid runtime-only `flashinfer` NVCC build failures.
+- FlashInfer prefill JIT is disabled by default via `DISABLE_FLASHINFER_PREFILL=true` to prevent `ninja ... gdn_prefill_sm90` startup failures on toolchain-less runtime images.
+- Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` and default `DISABLE_FLASHINFER_PREFILL=true` for deterministic startup.
 - Default image path uses pinned nightly `vllm==0.16.1rc1.dev257+g3b23d57c9` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
 - Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
 - Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
@@ -96,6 +98,8 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
 - Worker startup now fails fast with an actionable message when `MODEL_NAME` is Qwen3.5 but runtime lacks `language_model_only` support.
+
+To opt in to FLASHINFER prefill intentionally, set both `DISABLE_FLASHINFER_PREFILL=false` and `ATTENTION_BACKEND=FLASHINFER`. If nvcc/ninja/C++ toolchain is unavailable at runtime, the worker forces fallback to `FLASH_ATTN` and logs a warning.
 
 ### 128k Quality Mode (Qwen3.5-27B)
 

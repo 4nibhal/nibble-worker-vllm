@@ -1,14 +1,15 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0022",
-  "objective": "Apply a fork-only runtime correction to remove nonexistent stable vLLM 0.16.1 references, default this image path to a pinned nightly build that supports Qwen3.5 language_model_only startup, and keep deterministic stable override support at vLLM 0.16.0.",
-  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0023",
+  "objective": "Apply a fork-only hotfix for startup/inference reliability that prevents flashinfer prefill JIT failures (`ninja ... gdn_prefill_sm90` exit 127) by default while keeping an explicit opt-in path.",
+  "scope": "Apply minimal, reversible changes in this fork only to src/engine_args.py, scripts/config_doctor.py, .runpod/hub.json, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Default image path pins nightly vLLM to 0.16.1rc1.dev257+g3b23d57c9 (deterministic) so Qwen3.5 text-only path (`LANGUAGE_MODEL_ONLY=true`) is available.",
-    "Default nightly path pins transformers to immutable `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` and exposes this as an explicit Docker/buildx override.",
-    "Build configuration keeps explicit stable override at VLLM_VERSION=0.16.0 when VLLM_NIGHTLY=false.",
-    "Engine arg parsing fails fast with an actionable error when Qwen3.5 is selected but runtime lacks language_model_only support or it is disabled.",
+    "Runtime defaults disable flashinfer prefill deterministically via `DISABLE_FLASHINFER_PREFILL=true` behavior, preserving explicit user opt-in (`DISABLE_FLASHINFER_PREFILL=false`).",
+    "When flashinfer backend is requested but nvcc/ninja/C++ toolchain is missing, worker forces safe fallback and emits actionable warning.",
+    "RunPod hub presets and env metadata expose `DISABLE_FLASHINFER_PREFILL` clearly, with qwen presets defaulting it to true.",
+    "README and runtime compatibility docs capture root cause and exact override instructions.",
+    "config_doctor emits warning for risky combo (`Qwen3.5` + flashinfer prefill enabled) on likely toolchain-less runtime path.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -17,8 +18,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this correction commit. Operational fast rollback without code revert is to build/deploy with `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`, or keep nightly enabled while reverting only `TRANSFORMERS_REF` to a previously validated commit SHA, then switch production presets away from `Qwen/Qwen3.5-27B` (or disable LANGUAGE_MODEL_ONLY-dependent paths) until a compatible nightly image is redeployed. Endpoint-level rollback remains pinning to the last known-good fork tag while rebuild/redeploy completes.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit. Operational rollback without code revert is to set `DISABLE_FLASHINFER_PREFILL=false` only on endpoints that require flashinfer and have verified nvcc+ninja+C++ toolchain, or switch endpoint env to a previously validated preset/tag while redeploying. Fast safety rollback is restoring `DISABLE_FLASHINFER_PREFILL=true` and `ATTENTION_BACKEND=FLASH_ATTN` on affected endpoints.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are runtime behavior changes from defaulting to nightly and false-positive startup blocks from stricter Qwen3.5 validation. Mitigation: pin exact nightly version (`0.16.1rc1.dev257+g3b23d57c9`), keep explicit stable override (`0.16.0`) for deterministic fallback, keep code changes narrow to messaging/compatibility guards, and require staged runtime validation.",
+  "threat_model": "Main risks are throughput regressions for workloads that benefit from flashinfer prefill and false confidence when users opt in without required toolchain. Mitigation: keep default safe fallback deterministic, preserve explicit opt-in path, emit runtime/config warnings, keep change set narrow/fork-local, and require staged startup+inference validation.",
   "ambiguities": []
 }
