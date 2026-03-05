@@ -16,6 +16,9 @@ FORBIDDEN_ZERO_KEYS = {
 }
 
 UNSET_OPTIONAL_VALUES = {"", "None", "none"}
+ENABLE_FLASHINFER_KEY = "ENABLE_FLASHINFER"
+DISABLE_FLASHINFER_PREFILL_KEY = "DISABLE_FLASHINFER_PREFILL"
+FLASHINFER_TOOLCHAIN_READY_KEY = "FLASHINFER_TOOLCHAIN_READY"
 
 
 def _repo_root() -> Path:
@@ -166,13 +169,16 @@ def _is_flashinfer_backend(value: Any) -> bool:
     return normalized == "FLASHINFER"
 
 
-def _warn_flashinfer_prefill_risk(hub: dict[str, Any]) -> list[str]:
+def _check_flashinfer_opt_in_posture(
+    hub: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
     warnings: list[str] = []
     config = hub.get("config") if isinstance(hub, dict) else None
     presets = config.get("presets") if isinstance(config, dict) else None
 
     if not isinstance(presets, list):
-        return warnings
+        return errors, warnings
 
     for preset in presets:
         if not isinstance(preset, dict):
@@ -187,22 +193,53 @@ def _warn_flashinfer_prefill_risk(hub: dict[str, Any]) -> list[str]:
             continue
 
         disable_prefill = _as_bool_with_default(
-            defaults.get("DISABLE_FLASHINFER_PREFILL"),
+            defaults.get(DISABLE_FLASHINFER_PREFILL_KEY),
             True,
         )
         attention_backend = defaults.get("ATTENTION_BACKEND")
-        if disable_prefill:
-            continue
-        if not _is_flashinfer_backend(attention_backend):
+        flashinfer_backend_requested = _is_flashinfer_backend(attention_backend)
+        flashinfer_prefill_enabled = not disable_prefill
+        flashinfer_opt_in = flashinfer_backend_requested and flashinfer_prefill_enabled
+
+        if not flashinfer_opt_in:
+            if flashinfer_backend_requested and not flashinfer_prefill_enabled:
+                warnings.append(
+                    f"preset '{preset_name}' sets ATTENTION_BACKEND=FLASHINFER but keeps {DISABLE_FLASHINFER_PREFILL_KEY}=true"
+                )
+            elif flashinfer_prefill_enabled and not flashinfer_backend_requested:
+                warnings.append(
+                    f"preset '{preset_name}' sets {DISABLE_FLASHINFER_PREFILL_KEY}=false but ATTENTION_BACKEND is not FLASHINFER"
+                )
             continue
 
-        warnings.append(
-            f"preset '{preset_name}' enables FLASHINFER prefill on Qwen3.5 "
-            "(DISABLE_FLASHINFER_PREFILL=false + ATTENTION_BACKEND=FLASHINFER); "
-            "runtime image is likely toolchain-less (missing nvcc/ninja), so startup may fail with gdn_prefill_sm90 JIT exit 127"
+        enable_flashinfer = _as_bool_with_default(
+            defaults.get(ENABLE_FLASHINFER_KEY),
+            False,
+        )
+        toolchain_ready = _as_bool_with_default(
+            defaults.get(FLASHINFER_TOOLCHAIN_READY_KEY),
+            False,
         )
 
-    return warnings
+        if not enable_flashinfer:
+            errors.append(
+                f"preset '{preset_name}' opts into flashinfer but {ENABLE_FLASHINFER_KEY} is not true"
+            )
+        if not toolchain_ready:
+            errors.append(
+                f"preset '{preset_name}' opts into flashinfer without {FLASHINFER_TOOLCHAIN_READY_KEY}=true explicit posture"
+            )
+
+        if (
+            _is_qwen35_model_name(defaults.get("MODEL_NAME"))
+            and flashinfer_backend_requested
+        ):
+            warnings.append(
+                f"preset '{preset_name}' enables FLASHINFER prefill on Qwen3.5; "
+                "verify nvcc+ninja+C++ toolchain and startup probe to avoid gdn_prefill_sm90 JIT exit 127"
+            )
+
+    return errors, warnings
 
 
 def _warn_env_key_mismatch(hub: dict[str, Any]) -> list[str]:
@@ -282,7 +319,9 @@ def main() -> int:
         errors.extend(_check_forbidden_zeros(hub))
         warnings.extend(_check_optional_override_values(hub))
         warnings.extend(_warn_language_model_only_compat(hub))
-        warnings.extend(_warn_flashinfer_prefill_risk(hub))
+        flashinfer_errors, flashinfer_warnings = _check_flashinfer_opt_in_posture(hub)
+        errors.extend(flashinfer_errors)
+        warnings.extend(flashinfer_warnings)
         warnings.extend(_warn_env_key_mismatch(hub))
 
     for msg in errors:

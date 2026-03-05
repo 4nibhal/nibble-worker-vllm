@@ -34,6 +34,10 @@ variable "TRANSFORMERS_REF" {
   default = "421c7f6248e28d24d84ee000252a1e71fbc24917"
 }
 
+variable "ENABLE_FLASHINFER" {
+  default = "false"
+}
+
 variable "HUGGINGFACE_ACCESS_TOKEN" {
   default = ""
 }
@@ -54,5 +58,6 @@ target "worker-vllm" {
     VLLM_NIGHTLY_VERSION = "${VLLM_NIGHTLY_VERSION}"
     TRANSFORMERS_REF = "${TRANSFORMERS_REF}"
     VLLM_VERSION = "${VLLM_VERSION}"
+    ENABLE_FLASHINFER = "${ENABLE_FLASHINFER}"
   }
 }

@@ -16,10 +16,14 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 ## FlashInfer prefill reliability guard
 
 - Root cause observed on some H100 runtime paths: FLASHINFER prefill triggers JIT compile (`ninja ... gdn_prefill_sm90`) and exits `127` when nvcc/toolchain binaries are missing.
-- Default worker behavior is now deterministic: `DISABLE_FLASHINFER_PREFILL=true` by default, and runtime sets `ATTENTION_BACKEND=FLASH_ATTN` when backend is not explicitly set.
-- If `ATTENTION_BACKEND=FLASHINFER` is requested while `DISABLE_FLASHINFER_PREFILL=true`, worker overrides to `FLASH_ATTN` with a warning.
-- If user explicitly opts in (`DISABLE_FLASHINFER_PREFILL=false`) but toolchain probe cannot find `nvcc`, `ninja`, or a C++ compiler, worker still forces `FLASH_ATTN` and warns.
-- Explicit opt-in path (only when toolchain is present): set both `DISABLE_FLASHINFER_PREFILL=false` and `ATTENTION_BACKEND=FLASHINFER`.
+- Long-term fork policy: FlashInfer is hard-disabled by default at image/runtime level via `ENABLE_FLASHINFER=false`.
+- Build behavior with `ENABLE_FLASHINFER=false` removes `flashinfer`/`flashinfer-python` from the runtime image so FlashInfer is not active/available by default.
+- Runtime behavior stays deterministic: default `DISABLE_FLASHINFER_PREFILL=true` and `ATTENTION_BACKEND=FLASH_ATTN` unless explicit safe opt-in conditions are satisfied.
+- If `ATTENTION_BACKEND=FLASHINFER` is requested while `ENABLE_FLASHINFER=false` or `DISABLE_FLASHINFER_PREFILL=true`, worker overrides to `FLASH_ATTN` with a warning.
+- If user explicitly opts in but toolchain probe cannot find `nvcc`, `ninja`, or a C++ compiler, worker still forces `FLASH_ATTN` and warns.
+- Explicit opt-in path (advanced, toolchain-ready only):
+  - Build image with `--build-arg ENABLE_FLASHINFER=true`.
+  - Set endpoint env `ENABLE_FLASHINFER=true`, `FLASHINFER_TOOLCHAIN_READY=true`, `DISABLE_FLASHINFER_PREFILL=false`, and `ATTENTION_BACKEND=FLASHINFER`.
 
 ## RunPod env value handling
 

@@ -73,6 +73,8 @@ LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
 QWEN35_QUALITY_CONTEXT_TARGET = 131072
 STRICT_CONFIG_ENV_KEY = "STRICT_CONFIG"
 DISABLE_FLASHINFER_PREFILL_ENV_KEY = "DISABLE_FLASHINFER_PREFILL"
+ENABLE_FLASHINFER_ENV_KEY = "ENABLE_FLASHINFER"
+FLASHINFER_TOOLCHAIN_READY_ENV_KEY = "FLASHINFER_TOOLCHAIN_READY"
 FLASH_ATTN_BACKEND = "FLASH_ATTN"
 FLASHINFER_BACKEND = "FLASHINFER"
 
@@ -990,6 +992,53 @@ def get_engine_args():
         DISABLE_FLASHINFER_PREFILL_ENV_KEY,
         True,
     )
+    flashinfer_enabled_in_image = _env_bool_with_default(
+        ENABLE_FLASHINFER_ENV_KEY,
+        False,
+    )
+    flashinfer_toolchain_ready = _env_bool_with_default(
+        FLASHINFER_TOOLCHAIN_READY_ENV_KEY,
+        False,
+    )
+
+    if not flashinfer_enabled_in_image:
+        if supports_attention_backend and _is_flashinfer_backend(
+            args.get("attention_backend", "")
+        ):
+            args["attention_backend"] = FLASH_ATTN_BACKEND
+            logging.warning(
+                "Overriding ATTENTION_BACKEND=%s to %s because %s=%s disables FlashInfer at image/runtime level. "
+                "Rebuild with %s=true to enable FlashInfer opt-in path.",
+                FLASHINFER_BACKEND,
+                FLASH_ATTN_BACKEND,
+                ENABLE_FLASHINFER_ENV_KEY,
+                "false",
+                ENABLE_FLASHINFER_ENV_KEY,
+            )
+        if not disable_flashinfer_prefill:
+            logging.warning(
+                "Ignoring %s=false because %s=%s disables FlashInfer in this image.",
+                DISABLE_FLASHINFER_PREFILL_ENV_KEY,
+                ENABLE_FLASHINFER_ENV_KEY,
+                "false",
+            )
+            disable_flashinfer_prefill = True
+
+    if (
+        supports_attention_backend
+        and flashinfer_enabled_in_image
+        and _is_flashinfer_backend(args.get("attention_backend", ""))
+        and not disable_flashinfer_prefill
+        and not flashinfer_toolchain_ready
+    ):
+        args["attention_backend"] = FLASH_ATTN_BACKEND
+        logging.warning(
+            "Overriding ATTENTION_BACKEND=FLASHINFER to %s because %s=true requires explicit %s=true posture.",
+            FLASH_ATTN_BACKEND,
+            ENABLE_FLASHINFER_ENV_KEY,
+            FLASHINFER_TOOLCHAIN_READY_ENV_KEY,
+        )
+        disable_flashinfer_prefill = True
 
     if supports_attention_backend and disable_flashinfer_prefill:
         attention_backend = args.get("attention_backend")

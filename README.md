@@ -60,6 +60,7 @@ Configure worker-vllm using environment variables:
 | `TOOL_CALL_PARSER`                  | Parser for tool calls                             |                     | "mistral", "hermes", "llama3_json", "granite", "deepseek_v3", etc. |
 | `OPENAI_SERVED_MODEL_NAME_OVERRIDE` | Override served model name in API                 |                     | String                                                             |
 | `MAX_CONCURRENCY`                   | Maximum concurrent requests                       | 30                  | Integer                                                            |
+| `ENABLE_FLASHINFER`                 | Image/runtime FlashInfer package gate             | false               | boolean (true or false)                                            |
 
 **Pass any vLLM engine arg** not listed above by setting an environment variable with the **UPPERCASED** field name (same names vLLM uses). The worker auto-discovers all `AsyncEngineArgs` fields from env. For example:
 
@@ -89,7 +90,9 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 
 ### Runtime Reliability Defaults
 
-- FlashInfer prefill JIT is disabled by default via `DISABLE_FLASHINFER_PREFILL=true` to prevent `ninja ... gdn_prefill_sm90` startup failures on toolchain-less runtime images.
+- FlashInfer is hard-disabled by default at image/runtime level with `ENABLE_FLASHINFER=false`.
+- Default build path removes `flashinfer` packages when `ENABLE_FLASHINFER=false`, so FlashInfer is not active/available unless explicitly opted in.
+- FlashInfer prefill JIT remains disabled by default via `DISABLE_FLASHINFER_PREFILL=true` to prevent `ninja ... gdn_prefill_sm90` startup failures on toolchain-less runtime images.
 - Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` and default `DISABLE_FLASHINFER_PREFILL=true` for deterministic startup.
 - Default image path uses pinned nightly `vllm==0.16.1rc1.dev257+g3b23d57c9` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
 - Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
@@ -99,7 +102,7 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
 - Worker startup now fails fast with an actionable message when `MODEL_NAME` is Qwen3.5 but runtime lacks `language_model_only` support.
 
-To opt in to FLASHINFER prefill intentionally, set both `DISABLE_FLASHINFER_PREFILL=false` and `ATTENTION_BACKEND=FLASHINFER`. If nvcc/ninja/C++ toolchain is unavailable at runtime, the worker forces fallback to `FLASH_ATTN` and logs a warning.
+To opt in to FLASHINFER prefill intentionally (advanced), build with `ENABLE_FLASHINFER=true` and set endpoint env `ENABLE_FLASHINFER=true`, `FLASHINFER_TOOLCHAIN_READY=true`, `DISABLE_FLASHINFER_PREFILL=false`, and `ATTENTION_BACKEND=FLASHINFER`. If nvcc/ninja/C++ toolchain is unavailable at runtime, the worker forces fallback to `FLASH_ATTN` and logs a warning.
 
 ### 128k Quality Mode (Qwen3.5-27B)
 
@@ -144,6 +147,7 @@ To build an image with the model baked in, you must specify the following docker
   - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
   - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev257+g3b23d57c9`; must stay exact/pinned).
   - `TRANSFORMERS_REF`: Immutable transformers git ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides).
+  - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `false`; set `true` only for validated toolchain-ready images).
 
 For the remaining settings, you may apply them as environment variables when running the container. Supported environment variables are listed in the [Environment Variables](#environment-variables) section.
 
