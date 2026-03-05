@@ -20,10 +20,9 @@
           "RUNTIME_PROFILE": "safe",
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
-          "ENABLE_FLASHINFER": false,
-          "FLASHINFER_TOOLCHAIN_READY": false,
-          "ATTENTION_BACKEND": "FLASH_ATTN",
-          "DISABLE_FLASHINFER_PREFILL": true,
+          "ENABLE_FLASHINFER": true,
+          "ATTENTION_BACKEND": "FLASHINFER",
+          "DISABLE_FLASHINFER_PREFILL": false,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -43,10 +42,9 @@
           "RUNTIME_PROFILE": "balanced",
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
-          "ENABLE_FLASHINFER": false,
-          "FLASHINFER_TOOLCHAIN_READY": false,
-          "ATTENTION_BACKEND": "FLASH_ATTN",
-          "DISABLE_FLASHINFER_PREFILL": true,
+          "ENABLE_FLASHINFER": true,
+          "ATTENTION_BACKEND": "FLASHINFER",
+          "DISABLE_FLASHINFER_PREFILL": false,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -66,10 +64,9 @@
           "RUNTIME_PROFILE": "throughput",
           "MAX_MODEL_LEN": 131072,
           "SAFE_MAX_MODEL_LEN_CAP": 131072,
-          "ENABLE_FLASHINFER": false,
-          "FLASHINFER_TOOLCHAIN_READY": false,
-          "ATTENTION_BACKEND": "FLASH_ATTN",
-          "DISABLE_FLASHINFER_PREFILL": true,
+          "ENABLE_FLASHINFER": true,
+          "ATTENTION_BACKEND": "FLASHINFER",
+          "DISABLE_FLASHINFER_PREFILL": false,
           "KV_CACHE_DTYPE": "auto",
           "ENABLE_CHUNKED_PREFILL": true,
           "LANGUAGE_MODEL_ONLY": true,
@@ -85,8 +82,7 @@
         "defaults": {
           "MODEL_NAME": "HuggingFaceTB/SmolLM2-135M-Instruct",
           "RUNTIME_PROFILE": "safe",
-          "ENABLE_FLASHINFER": false,
-          "FLASHINFER_TOOLCHAIN_READY": false,
+          "ENABLE_FLASHINFER": true,
           "DISABLE_FLASHINFER_PREFILL": true,
           "NUM_GPU_BLOCKS_OVERRIDE": "None",
           "MAX_CPU_LORAS": "None",
@@ -624,18 +620,8 @@
         "input": {
           "name": "Enable FlashInfer",
           "type": "boolean",
-          "description": "Image/runtime gate for FlashInfer package availability. Default false keeps FlashInfer removed/unavailable in this fork image.",
-          "default": false,
-          "advanced": true
-        }
-      },
-      {
-        "key": "FLASHINFER_TOOLCHAIN_READY",
-        "input": {
-          "name": "FlashInfer Toolchain Ready",
-          "type": "boolean",
-          "description": "Explicit operator posture for FlashInfer opt-in. Set true only after verifying nvcc, ninja, and C++ compiler availability in runtime image.",
-          "default": false,
+          "description": "Image/runtime gate for FlashInfer package availability. Keep true for Qwen3.5 presets because vLLM qwen3_next imports flashinfer directly.",
+          "default": true,
           "advanced": true
         }
       },
@@ -644,7 +630,7 @@
         "input": {
           "name": "Attention Backend",
           "type": "string",
-          "description": "vLLM attention backend override. Leave empty for runtime-safe default (`FLASH_ATTN`). FLASHINFER requires ENABLE_FLASHINFER=true and DISABLE_FLASHINFER_PREFILL=false.",
+          "description": "vLLM attention backend override. Qwen3.5 presets use FLASHINFER. Runtime auto-falls back to FLASH_ATTN when required FlashInfer build tools are missing.",
           "advanced": true
         }
       },
@@ -653,8 +639,8 @@
         "input": {
           "name": "Disable FlashInfer Prefill",
           "type": "boolean",
-          "description": "Disable FLASHINFER prefill JIT by default to avoid startup failures on runtime images without nvcc/ninja toolchain. Set false only with ENABLE_FLASHINFER=true and explicit toolchain readiness.",
-          "default": true,
+          "description": "Disable FLASHINFER prefill JIT. Keep false for Qwen3.5 presets unless you intentionally force FLASH_ATTN fallback behavior.",
+          "default": false,
           "advanced": true
         }
       },

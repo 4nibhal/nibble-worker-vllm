@@ -11,7 +11,7 @@ variable "RELEASE_VERSION" {
 }
 
 variable "CUDA_IMAGE_TAG" {
-  default = "12.6.3-base-ubuntu22.04"
+  default = "12.6.3-devel-ubuntu22.04"
 }
 
 variable "PYTORCH_CUDA_INDEX" {
@@ -35,7 +35,7 @@ variable "TRANSFORMERS_REF" {
 }
 
 variable "ENABLE_FLASHINFER" {
-  default = "false"
+  default = "true"
 }
 
 variable "HUGGINGFACE_ACCESS_TOKEN" {

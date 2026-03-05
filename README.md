@@ -40,7 +40,7 @@ Deploy OpenAI-Compatible Blazing-Fast LLM Endpoints powered by the [vLLM](https:
 **📦 Docker Image**: `runpod/worker-v1-vllm:<version>`
 
 - **Available Versions**: See [GitHub Releases](https://github.com/runpod-workers/worker-vllm/releases)
-- **CUDA Compatibility**: Default build requires host driver support for CUDA >= 12.6. For CUDA 12.4-only hosts, rebuild with `--build-arg CUDA_IMAGE_TAG=12.4.1-base-ubuntu22.04 --build-arg PYTORCH_CUDA_INDEX=cu124`.
+- **CUDA Compatibility**: Default build requires host driver support for CUDA >= 12.6. For CUDA 12.4-only hosts, rebuild with `--build-arg CUDA_IMAGE_TAG=12.4.1-devel-ubuntu22.04 --build-arg PYTORCH_CUDA_INDEX=cu124`.
 
 ### Configuration
 
@@ -60,7 +60,7 @@ Configure worker-vllm using environment variables:
 | `TOOL_CALL_PARSER`                  | Parser for tool calls                             |                     | "mistral", "hermes", "llama3_json", "granite", "deepseek_v3", etc. |
 | `OPENAI_SERVED_MODEL_NAME_OVERRIDE` | Override served model name in API                 |                     | String                                                             |
 | `MAX_CONCURRENCY`                   | Maximum concurrent requests                       | 30                  | Integer                                                            |
-| `ENABLE_FLASHINFER`                 | Image/runtime FlashInfer package gate             | false               | boolean (true or false)                                            |
+| `ENABLE_FLASHINFER`                 | Image/runtime FlashInfer package gate             | true                | boolean (true or false)                                            |
 
 **Pass any vLLM engine arg** not listed above by setting an environment variable with the **UPPERCASED** field name (same names vLLM uses). The worker auto-discovers all `AsyncEngineArgs` fields from env. For example:
 
@@ -69,7 +69,7 @@ Configure worker-vllm using environment variables:
 | `MAX_MODEL_LEN`           | `max_model_len`          | `4096`        |
 | `ENFORCE_EAGER`           | `enforce_eager`          | `true`        |
 | `ENABLE_CHUNKED_PREFILL`  | `enable_chunked_prefill` | `true`        |
-| `DISABLE_FLASHINFER_PREFILL` | worker runtime guard   | `true`        |
+| `DISABLE_FLASHINFER_PREFILL` | worker runtime guard   | false               |
 
 Any env var whose name matches a valid `AsyncEngineArgs` field (uppercased) is applied automatically. Backward-compat aliases: `MODEL_NAME`, `TOKENIZER_NAME`, `MAX_CONTEXT_LEN_TO_CAPTURE`. This lets you configure any vLLM option without waiting for explicit worker support.
 
@@ -90,10 +90,10 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 
 ### Runtime Reliability Defaults
 
-- FlashInfer is hard-disabled by default at image/runtime level with `ENABLE_FLASHINFER=false`.
-- Default build path removes `flashinfer` packages when `ENABLE_FLASHINFER=false`, so FlashInfer is not active/available unless explicitly opted in.
-- FlashInfer prefill JIT remains disabled by default via `DISABLE_FLASHINFER_PREFILL=true` to prevent `ninja ... gdn_prefill_sm90` startup failures on toolchain-less runtime images.
-- Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` and default `DISABLE_FLASHINFER_PREFILL=true` for deterministic startup.
+- Root cause fix: Qwen3.5 nightly path imports `flashinfer` directly in `qwen3_next`, so this fork now keeps FlashInfer installed by default (`ENABLE_FLASHINFER=true`).
+- Runtime image now includes toolchain components needed for FlashInfer JIT paths (`ninja`, C++ compiler, nvcc-capable CUDA devel image baseline).
+- Runtime guardrails remain explicit: if FlashInfer backend is requested but toolchain probe fails, worker auto-falls back to `FLASH_ATTN` and logs a warning.
+- Qwen presets are coherent with this strategy and now use `ATTENTION_BACKEND=FLASHINFER` with `DISABLE_FLASHINFER_PREFILL=false`.
 - Default image path uses pinned nightly `vllm==0.16.1rc1.dev268+ge2b31243c` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
 - Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
 - Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
@@ -102,7 +102,7 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
 - Worker startup now fails fast with an actionable message when `MODEL_NAME` is Qwen3.5 but runtime lacks `language_model_only` support.
 
-To opt in to FLASHINFER prefill intentionally (advanced), build with `ENABLE_FLASHINFER=true` and set endpoint env `ENABLE_FLASHINFER=true`, `FLASHINFER_TOOLCHAIN_READY=true`, `DISABLE_FLASHINFER_PREFILL=false`, and `ATTENTION_BACKEND=FLASHINFER`. If nvcc/ninja/C++ toolchain is unavailable at runtime, the worker forces fallback to `FLASH_ATTN` and logs a warning.
+To force deterministic fallback mode intentionally, set `ATTENTION_BACKEND=FLASH_ATTN` or `DISABLE_FLASHINFER_PREFILL=true`. If nvcc/ninja/C++ toolchain is unavailable at runtime, the worker also forces fallback to `FLASH_ATTN` and logs a warning.
 
 ### 128k Quality Mode (Qwen3.5-27B)
 
@@ -113,7 +113,8 @@ MODEL_NAME=Qwen/Qwen3.5-27B
 MODEL_PROFILE=qwen3_5_27b
 MAX_MODEL_LEN=131072
 SAFE_MAX_MODEL_LEN_CAP=131072
-ATTENTION_BACKEND=FLASH_ATTN
+ENABLE_FLASHINFER=true
+ATTENTION_BACKEND=FLASHINFER
 KV_CACHE_DTYPE=auto
 ENABLE_CHUNKED_PREFILL=true
 LANGUAGE_MODEL_ONLY=true
@@ -139,7 +140,7 @@ To build an image with the model baked in, you must specify the following docker
   - `MODEL_REVISION`: Model revision to load (default: `main`).
   - `BASE_PATH`: Storage directory where huggingface cache and model will be located. (default: `/runpod-volume`, which will utilize network storage if you attach it or create a local directory within the image if you don't. If your intention is to bake the model into the image, you should set this to something like `/models` to make sure there are no issues if you were to accidentally attach network storage.)
   - `QUANTIZATION`
-  - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-base-ubuntu22.04`).
+  - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-devel-ubuntu22.04`).
   - `PYTORCH_CUDA_INDEX`: PyTorch wheel index matching the CUDA runtime (default: `cu126`; use `cu124` with CUDA 12.4 builds).
   - `VLLM_VERSION`: Stable vLLM package version (default: `0.16.0`; only used when `VLLM_NIGHTLY=false`; keep pinned).
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
@@ -147,7 +148,7 @@ To build an image with the model baked in, you must specify the following docker
   - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
   - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev268+ge2b31243c`; must stay exact/pinned).
   - `TRANSFORMERS_REF`: Immutable transformers git ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides).
-  - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `false`; set `true` only for validated toolchain-ready images).
+  - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `true`; keep enabled for Qwen3.5 nightly compatibility).
 
 For the remaining settings, you may apply them as environment variables when running the container. Supported environment variables are listed in the [Environment Variables](#environment-variables) section.
 

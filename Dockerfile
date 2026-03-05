@@ -1,8 +1,8 @@
-ARG CUDA_IMAGE_TAG="12.6.3-base-ubuntu22.04"
+ARG CUDA_IMAGE_TAG="12.6.3-devel-ubuntu22.04"
 FROM nvidia/cuda:${CUDA_IMAGE_TAG}
 
 RUN apt-get update -y \
-    && apt-get install -y python3-pip
+    && apt-get install -y python3-pip build-essential ninja-build git
 
 RUN ldconfig /usr/local/cuda/compat/
 
@@ -11,13 +11,16 @@ ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev268+ge2b31243c"
 ARG TRANSFORMERS_REF="421c7f6248e28d24d84ee000252a1e71fbc24917"
 ARG VLLM_VERSION="0.16.0"
 ARG PYTORCH_CUDA_INDEX="cu126"
-ARG ENABLE_FLASHINFER="false"
+ARG ENABLE_FLASHINFER="true"
 
 # Install vLLM (deterministic pinned nightly default; pinned stable override optional)
 RUN python3 -m pip install --upgrade pip && \
     if [ "${VLLM_NIGHTLY}" = "true" ]; then \
-        python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly && \
-        apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
+        if [ "${ENABLE_FLASHINFER}" = "true" ]; then \
+            python3 -m pip install "vllm[flashinfer]==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly; \
+        else \
+            python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly; \
+        fi && \
         python3 -m pip install "git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"; \
     else \
         if [ "${ENABLE_FLASHINFER}" = "true" ]; then \
@@ -25,9 +28,6 @@ RUN python3 -m pip install --upgrade pip && \
         else \
             python3 -m pip install "vllm==${VLLM_VERSION}" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \
         fi; \
-    fi && \
-    if [ "${ENABLE_FLASHINFER}" != "true" ]; then \
-        python3 -m pip uninstall -y flashinfer flashinfer-python || true; \
     fi
 
 

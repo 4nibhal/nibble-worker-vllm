@@ -18,7 +18,6 @@ FORBIDDEN_ZERO_KEYS = {
 UNSET_OPTIONAL_VALUES = {"", "None", "none"}
 ENABLE_FLASHINFER_KEY = "ENABLE_FLASHINFER"
 DISABLE_FLASHINFER_PREFILL_KEY = "DISABLE_FLASHINFER_PREFILL"
-FLASHINFER_TOOLCHAIN_READY_KEY = "FLASHINFER_TOOLCHAIN_READY"
 
 
 def _repo_root() -> Path:
@@ -216,18 +215,9 @@ def _check_flashinfer_opt_in_posture(
             defaults.get(ENABLE_FLASHINFER_KEY),
             False,
         )
-        toolchain_ready = _as_bool_with_default(
-            defaults.get(FLASHINFER_TOOLCHAIN_READY_KEY),
-            False,
-        )
-
         if not enable_flashinfer:
             errors.append(
                 f"preset '{preset_name}' opts into flashinfer but {ENABLE_FLASHINFER_KEY} is not true"
-            )
-        if not toolchain_ready:
-            errors.append(
-                f"preset '{preset_name}' opts into flashinfer without {FLASHINFER_TOOLCHAIN_READY_KEY}=true explicit posture"
             )
 
         if (

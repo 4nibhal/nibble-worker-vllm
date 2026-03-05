@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import shutil
+import importlib.util
 from typing import get_origin, get_args
 from vllm import AsyncEngineArgs
 
@@ -74,7 +75,6 @@ QWEN35_QUALITY_CONTEXT_TARGET = 131072
 STRICT_CONFIG_ENV_KEY = "STRICT_CONFIG"
 DISABLE_FLASHINFER_PREFILL_ENV_KEY = "DISABLE_FLASHINFER_PREFILL"
 ENABLE_FLASHINFER_ENV_KEY = "ENABLE_FLASHINFER"
-FLASHINFER_TOOLCHAIN_READY_ENV_KEY = "FLASHINFER_TOOLCHAIN_READY"
 FLASH_ATTN_BACKEND = "FLASH_ATTN"
 FLASHINFER_BACKEND = "FLASHINFER"
 
@@ -217,6 +217,10 @@ def _is_flashinfer_backend(value: str) -> bool:
     return _normalize_attention_backend(value) == FLASHINFER_BACKEND
 
 
+def _flashinfer_module_available() -> bool:
+    return importlib.util.find_spec("flashinfer") is not None
+
+
 def _detect_flashinfer_build_toolchain() -> tuple[bool, list[str]]:
     missing: list[str] = []
     if not shutil.which("ninja"):
@@ -309,6 +313,13 @@ def _ensure_qwen3_5_runtime_compat(args: dict, valid_fields: dict) -> None:
             "Qwen3.5 startup requires LANGUAGE_MODEL_ONLY=true on this worker path to avoid "
             "unsupported multimodal architecture initialization "
             "(Qwen3_5ForConditionalGeneration)."
+        )
+
+    if not _flashinfer_module_available():
+        raise RuntimeError(
+            "Qwen3.5 runtime requires Python module 'flashinfer' because vLLM qwen3_next imports it directly. "
+            "Rebuild this fork image with flashinfer available (default build arg ENABLE_FLASHINFER=true), "
+            "or switch MODEL_NAME to a non-Qwen3.5 model."
         )
 
 
@@ -990,17 +1001,12 @@ def get_engine_args():
 
     disable_flashinfer_prefill = _env_bool_with_default(
         DISABLE_FLASHINFER_PREFILL_ENV_KEY,
-        True,
+        False,
     )
     flashinfer_enabled_in_image = _env_bool_with_default(
         ENABLE_FLASHINFER_ENV_KEY,
         False,
     )
-    flashinfer_toolchain_ready = _env_bool_with_default(
-        FLASHINFER_TOOLCHAIN_READY_ENV_KEY,
-        False,
-    )
-
     if not flashinfer_enabled_in_image:
         if supports_attention_backend and _is_flashinfer_backend(
             args.get("attention_backend", "")
@@ -1024,28 +1030,12 @@ def get_engine_args():
             )
             disable_flashinfer_prefill = True
 
-    if (
-        supports_attention_backend
-        and flashinfer_enabled_in_image
-        and _is_flashinfer_backend(args.get("attention_backend", ""))
-        and not disable_flashinfer_prefill
-        and not flashinfer_toolchain_ready
-    ):
-        args["attention_backend"] = FLASH_ATTN_BACKEND
-        logging.warning(
-            "Overriding ATTENTION_BACKEND=FLASHINFER to %s because %s=true requires explicit %s=true posture.",
-            FLASH_ATTN_BACKEND,
-            ENABLE_FLASHINFER_ENV_KEY,
-            FLASHINFER_TOOLCHAIN_READY_ENV_KEY,
-        )
-        disable_flashinfer_prefill = True
-
     if supports_attention_backend and disable_flashinfer_prefill:
         attention_backend = args.get("attention_backend")
         if attention_backend is None:
             args["attention_backend"] = FLASH_ATTN_BACKEND
             logging.info(
-                "Default runtime safety: set attention_backend=%s because %s defaults to true. "
+                "Default runtime safety: set attention_backend=%s because %s is true. "
                 "Set %s=false and ATTENTION_BACKEND=FLASHINFER only when toolchain is available.",
                 FLASH_ATTN_BACKEND,
                 DISABLE_FLASHINFER_PREFILL_ENV_KEY,
@@ -1054,7 +1044,7 @@ def get_engine_args():
         elif _is_flashinfer_backend(attention_backend):
             args["attention_backend"] = FLASH_ATTN_BACKEND
             logging.warning(
-                "Overriding ATTENTION_BACKEND=%s to %s because %s defaults to true. "
+                "Overriding ATTENTION_BACKEND=%s to %s because %s is true. "
                 "Set %s=false to opt in.",
                 attention_backend,
                 FLASH_ATTN_BACKEND,

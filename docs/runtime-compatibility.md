@@ -15,15 +15,15 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 
 ## FlashInfer prefill reliability guard
 
-- Root cause observed on some H100 runtime paths: FLASHINFER prefill triggers JIT compile (`ninja ... gdn_prefill_sm90`) and exits `127` when nvcc/toolchain binaries are missing.
-- Long-term fork policy: FlashInfer is hard-disabled by default at image/runtime level via `ENABLE_FLASHINFER=false`.
-- Build behavior with `ENABLE_FLASHINFER=false` removes `flashinfer`/`flashinfer-python` from the runtime image so FlashInfer is not active/available by default.
-- Runtime behavior stays deterministic: default `DISABLE_FLASHINFER_PREFILL=true` and `ATTENTION_BACKEND=FLASH_ATTN` unless explicit safe opt-in conditions are satisfied.
-- If `ATTENTION_BACKEND=FLASHINFER` is requested while `ENABLE_FLASHINFER=false` or `DISABLE_FLASHINFER_PREFILL=true`, worker overrides to `FLASH_ATTN` with a warning.
-- If user explicitly opts in but toolchain probe cannot find `nvcc`, `ninja`, or a C++ compiler, worker still forces `FLASH_ATTN` and warns.
-- Explicit opt-in path (advanced, toolchain-ready only):
-  - Build image with `--build-arg ENABLE_FLASHINFER=true`.
-  - Set endpoint env `ENABLE_FLASHINFER=true`, `FLASHINFER_TOOLCHAIN_READY=true`, `DISABLE_FLASHINFER_PREFILL=false`, and `ATTENTION_BACKEND=FLASHINFER`.
+- Root cause #1: Qwen3.5 nightly runtime path imports `flashinfer` directly from `vllm/model_executor/models/qwen3_next.py`, so removing FlashInfer from image/runtime caused `ModuleNotFoundError: No module named 'flashinfer'` before engine args were applied.
+- Root cause #2: when FlashInfer prefill JIT was actually reached, startup failed with `ninja ... gdn_prefill_sm90` exit `127` on images that lacked build tools (`nvcc`, `ninja`, C++ compiler).
+- Fork default now keeps FlashInfer installed/available (`ENABLE_FLASHINFER=true`) and ships build tools in the runtime image (`ninja`, C++ compiler, nvcc-capable CUDA devel image path).
+- Runtime guardrails remain explicit and deterministic:
+  - `DISABLE_FLASHINFER_PREFILL=false` is the default posture for Qwen3.5-ready images.
+  - Set `DISABLE_FLASHINFER_PREFILL=true` to force deterministic prefill fallback without changing package availability.
+  - If `ATTENTION_BACKEND=FLASHINFER` is requested but required tools are missing at runtime probe, worker forces `FLASH_ATTN` and warns.
+  - If `MODEL_NAME` is Qwen3.5 and FlashInfer module is missing anyway (custom image drift), startup fails fast with an actionable error.
+- Qwen3.5 presets intentionally set `ENABLE_FLASHINFER=true`, `ATTENTION_BACKEND=FLASHINFER`, and `DISABLE_FLASHINFER_PREFILL=false` for coherent behavior with the toolchain-ready image.
 
 ## RunPod env value handling
 
@@ -41,12 +41,12 @@ Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset 
 
 ## CUDA host-driver compatibility
 
-- Default container base is CUDA 12.6 (`CUDA_IMAGE_TAG=12.6.3-base-ubuntu22.04`) with PyTorch wheels from `cu126`.
+- Default container base is CUDA 12.6 devel (`CUDA_IMAGE_TAG=12.6.3-devel-ubuntu22.04`) with PyTorch wheels from `cu126`.
 - This avoids `nvidia-container-cli: requirement error` on fleets where host drivers do not satisfy CUDA 12.8+.
-- Runtime image path does not assume full CUDA build toolchain availability at startup; this is why FLASHINFER prefill JIT is guarded by default.
+- Devel image path preserves CUDA 12.6 runtime baseline while also exposing nvcc for FlashInfer JIT compatibility.
 - For older hosts, keep CUDA runtime and wheel index aligned when building:
-  - CUDA 12.4 hosts: `CUDA_IMAGE_TAG=12.4.1-base-ubuntu22.04` and `PYTORCH_CUDA_INDEX=cu124`.
-  - CUDA 12.6 hosts: keep defaults (`12.6.3` and `cu126`).
+  - CUDA 12.4 hosts: `CUDA_IMAGE_TAG=12.4.1-devel-ubuntu22.04` and `PYTORCH_CUDA_INDEX=cu124`.
+  - CUDA 12.6 hosts: keep defaults (`12.6.3-devel` and `cu126`).
 
 ## Deployment gate checklist
 

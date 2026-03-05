@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0024",
-  "objective": "Apply a fork-only hotfix to use available deterministic nightly vLLM pin `0.16.1rc1.dev268+ge2b31243c`, while preserving existing FlashInfer hard-disable defaults and runtime guardrails.",
-  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0025",
+  "objective": "Implement a fork-only runtime fix so Qwen3.5 presets boot reliably after qwen3_next started importing flashinfer directly, while preventing prior FlashInfer JIT exit-127 regressions.",
+  "scope": "Apply minimal, reversible fork-local changes to Docker/runtime defaults, engine arg guardrails, RunPod presets, and runtime documentation across Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, .runpod/hub.json, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Deterministic nightly pin is updated everywhere to `0.16.1rc1.dev268+ge2b31243c`.",
-    "FlashInfer hard-disable defaults remain intact (`ENABLE_FLASHINFER=false` image/runtime posture and `DISABLE_FLASHINFER_PREFILL=true` default behavior unchanged).",
-    "README, runtime compatibility docs, and compatibility warnings reference the new nightly pin consistently.",
-    "Runtime compatibility docs include a release-safety note about nightly wheel churn and required pre-tag availability check.",
+    "Qwen3.5 runtime path no longer fails with `ModuleNotFoundError: No module named 'flashinfer'` on fork defaults.",
+    "Runtime image includes required FlashInfer JIT toolchain components (ninja, C++ compiler, nvcc-capable path) while keeping CUDA 12.6 baseline for broad host-driver compatibility.",
+    "Engine args keep guardrails and remove contradictory preset posture that previously hard-disabled FlashInfer for Qwen3.5.",
+    "RunPod Qwen3.5 presets are coherent with the chosen strategy and docs explain both root cause and fallback behavior.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -17,8 +17,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore the previous deterministic nightly pin. If nightly dev268 becomes unavailable, set build arg `VLLM_NIGHTLY_VERSION` to the next verified available nightly artifact and re-run validation gate before tagging. Runtime safety posture remains unchanged: keep `ENABLE_FLASHINFER=false`, `DISABLE_FLASHINFER_PREFILL=true`, and `ATTENTION_BACKEND=FLASH_ATTN` unless explicit advanced opt-in is intentionally validated.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this change set to restore prior FlashInfer hard-disable behavior and base image defaults. If startup regressions appear after rollout, temporary mitigation is endpoint env override `ATTENTION_BACKEND=FLASH_ATTN` and `DISABLE_FLASHINFER_PREFILL=true` while retaining installed FlashInfer package for qwen3_next import compatibility. If container/toolchain regressions are detected, revert `CUDA_IMAGE_TAG` default to previous base image and re-run validation gate before redeploy.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risk is nightly artifact churn (pinned wheel removed or replaced) causing build failures at release time; secondary risk is accidental drift of FlashInfer safety defaults. Mitigation: keep exact pin deterministic, keep FlashInfer hard-disable defaults unchanged, add pre-tag nightly availability check in runtime compatibility docs, keep change set narrow/fork-local, and require staged startup+inference validation.",
+  "threat_model": "Main risks are (1) larger CUDA devel image increasing build/pull time and (2) upstream FlashInfer wheel/toolchain drift causing runtime variance. Mitigations: keep version pins deterministic, keep runtime fallback guard to FLASH_ATTN on toolchain probe failure, fail fast for missing flashinfer on Qwen3.5, keep rollout staged 1->2->4, and retain fork-local rollback path.",
   "ambiguities": []
 }
