@@ -4,6 +4,11 @@ import logging
 import re
 from typing import get_origin, get_args
 from vllm import AsyncEngineArgs
+
+try:
+    from vllm import __version__ as VLLM_VERSION
+except Exception:  # pragma: no cover - defensive fallback for unusual builds
+    VLLM_VERSION = "unknown"
 from vllm.model_executor.model_loader.tensorizer import TensorizerConfig
 from src.utils import convert_limit_mm_per_prompt
 
@@ -237,6 +242,27 @@ def _env_has_explicit_value(env_key: str, zero_means_unset: bool = False) -> boo
 def _is_qwen3_5_model(model_name: str) -> bool:
     normalized = model_name.lower().replace("-", "").replace("_", "")
     return "qwen3.5" in model_name.lower() or "qwen35" in normalized
+
+
+def _ensure_qwen3_5_runtime_compat(args: dict, valid_fields: dict) -> None:
+    model_name = str(args.get("model", ""))
+    if not _is_qwen3_5_model(model_name):
+        return
+
+    if "language_model_only" not in valid_fields:
+        raise RuntimeError(
+            "Incompatible runtime for Qwen3.5 text-only startup: this image uses "
+            f"vLLM {VLLM_VERSION} without AsyncEngineArgs.language_model_only support. "
+            "Rebuild with vLLM >= 0.16.1 (fork default), or switch MODEL_NAME to a model "
+            "compatible with this runtime."
+        )
+
+    if args.get("language_model_only") is not True:
+        raise RuntimeError(
+            "Qwen3.5 startup requires LANGUAGE_MODEL_ONLY=true on this worker path to avoid "
+            "unsupported multimodal architecture initialization "
+            "(Qwen3_5ForConditionalGeneration)."
+        )
 
 
 def _infer_model_size_b(model_name: str):
@@ -709,6 +735,8 @@ def get_engine_args():
         ):
             continue
         args[key] = value
+
+    _ensure_qwen3_5_runtime_compat(args, valid_fields)
 
     # Special conversion for limit_mm_per_prompt (e.g. "image=1,video=0")
     limit_mm_env = os.getenv("LIMIT_MM_PER_PROMPT")

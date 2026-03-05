@@ -18,6 +18,10 @@ variable "PYTORCH_CUDA_INDEX" {
   default = "cu126"
 }
 
+variable "VLLM_VERSION" {
+  default = "0.16.1"
+}
+
 variable "HUGGINGFACE_ACCESS_TOKEN" {
   default = ""
 }
@@ -34,5 +38,6 @@ target "worker-vllm" {
   args = {
     CUDA_IMAGE_TAG = "${CUDA_IMAGE_TAG}"
     PYTORCH_CUDA_INDEX = "${PYTORCH_CUDA_INDEX}"
+    VLLM_VERSION = "${VLLM_VERSION}"
   }
 }

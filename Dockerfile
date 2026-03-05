@@ -8,6 +8,7 @@ RUN ldconfig /usr/local/cuda/compat/
 
 ARG VLLM_NIGHTLY="false"
 ARG VLLM_NIGHTLY_VERSION="0.16.1rc1.dev184+gae88468bc"
+ARG VLLM_VERSION="0.16.1"
 ARG PYTORCH_CUDA_INDEX="cu126"
 
 # Install vLLM (deterministic stable default; pinned nightly optional)
@@ -17,7 +18,7 @@ RUN python3 -m pip install --upgrade pip && \
         apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
         python3 -m pip install git+https://github.com/huggingface/transformers.git; \
     else \
-        python3 -m pip install "vllm[flashinfer]==0.16.0" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \
+        python3 -m pip install "vllm[flashinfer]==${VLLM_VERSION}" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \
     fi
 
 

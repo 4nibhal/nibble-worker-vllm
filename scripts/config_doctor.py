@@ -134,7 +134,7 @@ def _warn_language_model_only_compat(hub: dict[str, Any]) -> list[str]:
         )
         if enabled:
             warnings.append(
-                f"preset '{preset_name}' enables LANGUAGE_MODEL_ONLY; verify runtime uses vLLM >=0.16.1rc0 because older versions reject this arg"
+                f"preset '{preset_name}' enables LANGUAGE_MODEL_ONLY; verify runtime uses vLLM >=0.16.1 because older versions reject this arg"
             )
 
     return warnings

@@ -89,9 +89,11 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 ### Runtime Reliability Defaults
 
 - Qwen presets pin `ATTENTION_BACKEND=FLASH_ATTN` to avoid runtime-only `flashinfer` NVCC build failures.
+- Default image pin is `vllm[flashinfer]==0.16.1` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
 - Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
+- Worker startup now fails fast with an actionable message when `MODEL_NAME` is Qwen3.5 but runtime lacks `language_model_only` support.
 
 ### 128k Quality Mode (Qwen3.5-27B)
 
@@ -130,6 +132,7 @@ To build an image with the model baked in, you must specify the following docker
   - `QUANTIZATION`
   - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-base-ubuntu22.04`).
   - `PYTORCH_CUDA_INDEX`: PyTorch wheel index matching the CUDA runtime (default: `cu126`; use `cu124` with CUDA 12.4 builds).
+  - `VLLM_VERSION`: Stable vLLM package version (default: `0.16.1`; must stay pinned, no floating pre-release).
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
   - `VLLM_NIGHTLY`: Set to `true` to replace the pinned vLLM release with the latest nightly build and the latest `transformers` from source. Useful for testing unreleased vLLM features. (default: `false`)

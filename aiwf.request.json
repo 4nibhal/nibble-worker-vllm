@@ -1,22 +1,23 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0021",
-  "objective": "Apply a fork-only runtime compatibility hotfix to remove the CUDA 12.8 host-driver requirement that causes startup failure (`nvidia-container-cli requirement error`) while keeping vLLM behavior stable.",
-  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, docs/runtime-compatibility.md, README.md, and aiwf.request.json. Keep dependency/runtime alignment by matching CUDA base image and PyTorch wheel index build args.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0022",
+  "objective": "Apply a fork-only production hotfix so the default image/presets boot with Qwen/Qwen3.5-27B by pinning a language_model_only-capable vLLM build and adding a clear fail-fast guard for incompatible runtimes.",
+  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Default container runtime no longer hard-requires CUDA 12.8 and uses CUDA 12.6-compatible base/image index defaults.",
-    "Build configuration exposes CUDA runtime and PyTorch wheel index as explicit build args for controlled rollback/override.",
-    "Operator docs explicitly state host-driver compatibility and the CUDA 12.4 override path.",
-    "Validation gate commands complete: py_compile, .runpod/hub.json JSON load, and docker buildx bake --print."
+    "Default image pins stable vLLM to 0.16.1 (deterministic) so Qwen3.5 text-only path (`LANGUAGE_MODEL_ONLY=true`) is available.",
+    "Build configuration exposes VLLM_VERSION as explicit pinned build arg for controlled rollback/override.",
+    "Engine arg parsing fails fast with an actionable error when Qwen3.5 is selected but runtime lacks language_model_only support or it is disabled.",
+    "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
     "python -m py_compile src/*.py handler.py",
-    "python -c \"import json; json.load(open('.runpod/hub.json')); print('json ok')\"",
+    "python scripts/config_doctor.py",
+    "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore prior CUDA 12.8 defaults (`CUDA_IMAGE_TAG=12.8.1-base-ubuntu22.04`, `PYTORCH_CUDA_INDEX=cu128`) in Dockerfile/docker-bake. Operational rollback is pinning endpoint image to the last known-good fork tag while revert image is rebuilt and redeployed.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore the previous vLLM pin and remove the Qwen3.5 fail-fast guard. If partial rollback is needed, set `VLLM_VERSION=0.16.0` at build time and switch production presets away from `Qwen/Qwen3.5-27B` until a compatible image is redeployed. Operational rollback is pinning endpoint image to the last known-good fork tag while rebuild/redeploy completes.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are binary/runtime mismatch when CUDA base image and wheel index diverge, and performance regressions from runtime downgrade. Mitigation: keep defaults aligned (`12.6.3` + `cu126`), document explicit override pairs, and require staged runtime validation.",
+  "threat_model": "Main risks are behavior changes from vLLM version shift and false-positive startup blocks from stricter Qwen3.5 validation. Mitigation: pin exact stable version (`0.16.1`), keep changes narrow to startup argument validation, expose build arg for controlled rollback, and require staged runtime validation.",
   "ambiguities": []
 }

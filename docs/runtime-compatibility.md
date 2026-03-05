@@ -4,9 +4,10 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 
 ## vLLM AsyncEngineArgs compatibility
 
-- vLLM `<0.16.1rc0`: `language_model_only` is not available in `AsyncEngineArgs`.
-- vLLM `>=0.16.1rc0`: `language_model_only` is supported.
+- vLLM `<0.16.1`: `language_model_only` is not available in `AsyncEngineArgs`.
+- vLLM `>=0.16.1`: `language_model_only` is supported.
 - Worker behavior: profile defaults are applied only when the target key exists in `AsyncEngineArgs.__dataclass_fields__`.
+- Qwen3.5 guard: startup now fails fast with an actionable error if `MODEL_NAME` targets Qwen3.5 but runtime does not expose `language_model_only` or if `LANGUAGE_MODEL_ONLY` is not true.
 
 ## RunPod env value handling
 
