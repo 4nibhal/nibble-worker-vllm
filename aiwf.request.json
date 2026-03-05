@@ -1,16 +1,14 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0023",
-  "objective": "Apply a fork-only long-term runtime fix that hard-disables FlashInfer by default (image + runtime) to stop recurring `flashinfer/jit ... gdn_prefill_sm90 exit 127` failures, while preserving a strict advanced opt-in path and Qwen3.5 guardrails.",
-  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, .runpod/hub.json, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0024",
+  "objective": "Apply a fork-only hotfix to use available deterministic nightly vLLM pin `0.16.1rc1.dev268+ge2b31243c`, while preserving existing FlashInfer hard-disable defaults and runtime guardrails.",
+  "scope": "Apply minimal, reversible changes in this fork only to Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Build/runtime defaults hard-disable FlashInfer with deterministic `ENABLE_FLASHINFER=false`, ensuring flashinfer package is not active/available by default in the runtime image.",
-    "Runtime defaults still disable FlashInfer prefill deterministically via `DISABLE_FLASHINFER_PREFILL=true`, preserving explicit user opt-in only when image gate is enabled.",
-    "When flashinfer backend is requested but nvcc/ninja/C++ toolchain is missing, worker forces safe fallback and emits actionable warning.",
-    "RunPod hub presets and env metadata expose `ENABLE_FLASHINFER`, `FLASHINFER_TOOLCHAIN_READY`, and `DISABLE_FLASHINFER_PREFILL` clearly, with fork presets defaulting to safe disabled posture.",
-    "README and runtime compatibility docs capture root cause, hard-disable policy, and exact advanced override instructions.",
-    "config_doctor warns/fails on risky flashinfer opt-in combos when explicit toolchain posture is missing.",
+    "Deterministic nightly pin is updated everywhere to `0.16.1rc1.dev268+ge2b31243c`.",
+    "FlashInfer hard-disable defaults remain intact (`ENABLE_FLASHINFER=false` image/runtime posture and `DISABLE_FLASHINFER_PREFILL=true` default behavior unchanged).",
+    "README, runtime compatibility docs, and compatibility warnings reference the new nightly pin consistently.",
+    "Runtime compatibility docs include a release-safety note about nightly wheel churn and required pre-tag availability check.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -19,8 +17,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this runtime fix commit. Operational rollback without code revert is endpoint-level safety: set `ENABLE_FLASHINFER=false`, `DISABLE_FLASHINFER_PREFILL=true`, and `ATTENTION_BACKEND=FLASH_ATTN` to return to hard-disable posture. Advanced rollback for FlashInfer-enabled endpoints is to redeploy a previously validated image tag and preset known to include `ENABLE_FLASHINFER=true` with verified nvcc+ninja+C++ toolchain.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this hotfix commit to restore the previous deterministic nightly pin. If nightly dev268 becomes unavailable, set build arg `VLLM_NIGHTLY_VERSION` to the next verified available nightly artifact and re-run validation gate before tagging. Runtime safety posture remains unchanged: keep `ENABLE_FLASHINFER=false`, `DISABLE_FLASHINFER_PREFILL=true`, and `ATTENTION_BACKEND=FLASH_ATTN` unless explicit advanced opt-in is intentionally validated.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are throughput regressions for workloads that benefit from flashinfer prefill and false confidence when users opt in without required toolchain. Mitigation: keep default safe fallback deterministic, preserve explicit opt-in path, emit runtime/config warnings, keep change set narrow/fork-local, and require staged startup+inference validation.",
+  "threat_model": "Main risk is nightly artifact churn (pinned wheel removed or replaced) causing build failures at release time; secondary risk is accidental drift of FlashInfer safety defaults. Mitigation: keep exact pin deterministic, keep FlashInfer hard-disable defaults unchanged, add pre-tag nightly availability check in runtime compatibility docs, keep change set narrow/fork-local, and require staged startup+inference validation.",
   "ambiguities": []
 }

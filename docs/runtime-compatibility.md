@@ -5,8 +5,8 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 ## vLLM AsyncEngineArgs compatibility
 
 - Stable vLLM `0.16.0`: `language_model_only` is not available in `AsyncEngineArgs`.
-- Fork pinned nightly `0.16.1rc1.dev257+g3b23d57c9`: `language_model_only` is available for Qwen3.5 text-only startup.
-- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.16.1rc1.dev257+g3b23d57c9`.
+- Fork pinned nightly `0.16.1rc1.dev268+ge2b31243c`: `language_model_only` is available for Qwen3.5 text-only startup.
+- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.16.1rc1.dev268+ge2b31243c`.
 - Default nightly path pins `transformers` by immutable git ref via `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917`.
 - Stable override remains supported via `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`.
 - Override mechanism: pass `--build-arg TRANSFORMERS_REF=<commit-sha>` (or set bake var `TRANSFORMERS_REF`) when validating a different transformers revision.
@@ -49,6 +49,8 @@ Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset 
   - CUDA 12.6 hosts: keep defaults (`12.6.3` and `cu126`).
 
 ## Deployment gate checklist
+
+- Release safety note: nightly wheel artifacts can churn/disappear from `wheels.vllm.ai/nightly`; before creating a release tag, run `docker buildx bake --print` and confirm the pinned `VLLM_NIGHTLY_VERSION` still resolves in the nightly index.
 
 Run this gate before release or endpoint cutover:
 

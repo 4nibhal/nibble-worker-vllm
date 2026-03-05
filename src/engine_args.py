@@ -299,7 +299,7 @@ def _ensure_qwen3_5_runtime_compat(args: dict, valid_fields: dict) -> None:
             "Incompatible runtime for Qwen3.5 text-only startup: this image uses "
             f"vLLM {VLLM_VERSION} without AsyncEngineArgs.language_model_only support. "
             "Rebuild with VLLM_NIGHTLY=true and "
-            "VLLM_NIGHTLY_VERSION=0.16.1rc1.dev257+g3b23d57c9 (fork default), or switch "
+            "VLLM_NIGHTLY_VERSION=0.16.1rc1.dev268+ge2b31243c (fork default), or switch "
             "MODEL_NAME to a model compatible with this runtime. Stable "
             "VLLM_VERSION=0.16.0 does not expose this arg."
         )
