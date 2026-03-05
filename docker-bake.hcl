@@ -27,7 +27,7 @@ variable "VLLM_NIGHTLY" {
 }
 
 variable "VLLM_NIGHTLY_VERSION" {
-  default = "0.16.1rc1.dev268+ge2b31243c"
+  default = "0.16.1rc1.dev275+ga708ef594"
 }
 
 variable "TRANSFORMERS_REF" {

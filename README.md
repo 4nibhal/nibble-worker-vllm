@@ -94,7 +94,7 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 - Runtime image now includes toolchain components needed for FlashInfer JIT paths (`ninja`, C++ compiler, nvcc-capable CUDA devel image baseline).
 - Runtime guardrails remain explicit: if FlashInfer backend is requested but toolchain probe fails, worker auto-falls back to `FLASH_ATTN` and logs a warning.
 - Qwen presets are coherent with this strategy and now use `ATTENTION_BACKEND=FLASHINFER` with `DISABLE_FLASHINFER_PREFILL=false`.
-- Default image path uses pinned nightly `vllm==0.16.1rc1.dev268+ge2b31243c` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
+- Default image path uses pinned nightly `vllm==0.16.1rc1.dev275+ga708ef594` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
 - Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
 - Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
 - Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
@@ -146,7 +146,7 @@ To build an image with the model baked in, you must specify the following docker
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
   - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
-  - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev268+ge2b31243c`; must stay exact/pinned).
+  - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev275+ga708ef594`; must stay exact/pinned).
   - `TRANSFORMERS_REF`: Immutable transformers git ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides).
   - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `true`; keep enabled for Qwen3.5 nightly compatibility).
 
@@ -169,7 +169,7 @@ docker build -t username/image:tag --build-arg VLLM_NIGHTLY=false --build-arg VL
 To override nightly with the fork's pinned nightly build explicitly:
 
 ```bash
-docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true --build-arg VLLM_NIGHTLY_VERSION=0.16.1rc1.dev268+ge2b31243c --build-arg TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917 .
+docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true --build-arg VLLM_NIGHTLY_VERSION=0.16.1rc1.dev275+ga708ef594 --build-arg TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917 .
 ```
 
 To test a different transformers revision on nightly builds, override only `TRANSFORMERS_REF`:
