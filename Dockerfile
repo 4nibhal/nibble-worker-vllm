@@ -6,14 +6,14 @@ RUN apt-get update -y \
 
 RUN ldconfig /usr/local/cuda/compat/
 
-ARG VLLM_NIGHTLY="true"
+ARG VLLM_NIGHTLY="false"
 ARG VLLM_NIGHTLY_VERSION="0.17.0rc1.dev149+g40077ea3d"
 ARG TRANSFORMERS_REF="421c7f6248e28d24d84ee000252a1e71fbc24917"
-ARG VLLM_VERSION="0.16.0"
+ARG VLLM_VERSION="0.17.0"
 ARG PYTORCH_CUDA_INDEX="cu126"
 ARG ENABLE_FLASHINFER="true"
 
-# Install vLLM (deterministic pinned nightly default; pinned stable override optional)
+# Install vLLM (deterministic pinned stable default; pinned nightly fallback optional)
 RUN python3 -m pip install --upgrade pip && \
     if [ "${VLLM_NIGHTLY}" = "true" ]; then \
         if [ "${ENABLE_FLASHINFER}" = "true" ]; then \

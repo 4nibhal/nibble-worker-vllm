@@ -90,13 +90,13 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 
 ### Runtime Reliability Defaults
 
-- Root cause fix: Qwen3.5 nightly path imports `flashinfer` directly in `qwen3_next`, so this fork now keeps FlashInfer installed by default (`ENABLE_FLASHINFER=true`).
+- Root cause fix: Qwen3.5 runtime path imports `flashinfer` directly in `qwen3_next`, so this fork keeps FlashInfer installed by default (`ENABLE_FLASHINFER=true`).
 - Runtime image now includes toolchain components needed for FlashInfer JIT paths (`ninja`, C++ compiler, nvcc-capable CUDA devel image baseline).
 - Runtime guardrails remain explicit: if FlashInfer backend is requested but toolchain probe fails, worker auto-falls back to `FLASH_ATTN` and logs a warning.
 - Qwen presets are coherent with this strategy and now use `ATTENTION_BACKEND=FLASHINFER` with `DISABLE_FLASHINFER_PREFILL=false`.
-- Default image path uses pinned nightly `vllm==0.17.0rc1.dev149+g40077ea3d` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
-- Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF` and installs from the matching GitHub archive tarball (no git binary required).
-- Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
+- Default image path uses pinned stable `vllm==0.17.0` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
+- Optional nightly fallback remains available via `VLLM_NIGHTLY=true` with pinned `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`.
+- Nightly path pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF` and installs from the matching GitHub archive tarball (no git binary required).
 - Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
 - Set `STRICT_CONFIG=true` to fail fast at startup when critical numeric env values are invalid.
@@ -142,13 +142,13 @@ To build an image with the model baked in, you must specify the following docker
   - `QUANTIZATION`
   - `CUDA_IMAGE_TAG`: Base CUDA image tag (default: `12.6.3-devel-ubuntu22.04`).
   - `PYTORCH_CUDA_INDEX`: PyTorch wheel index matching the CUDA runtime (default: `cu126`; use `cu124` with CUDA 12.4 builds).
-  - `VLLM_VERSION`: Stable vLLM package version (default: `0.16.0`; only used when `VLLM_NIGHTLY=false`; keep pinned).
+  - `VLLM_VERSION`: Stable vLLM package version (default: `0.17.0`; only used when `VLLM_NIGHTLY=false`; keep pinned).
   - `TOKENIZER_NAME`: Tokenizer repository if you would like to use a different tokenizer than the one that comes with the model. (default: `None`, which uses the model's tokenizer)
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
-  - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
+  - `VLLM_NIGHTLY`: Enables nightly install path (default: `false`; nightly is optional fallback only).
   - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.17.0rc1.dev149+g40077ea3d`; must stay exact/pinned).
   - `TRANSFORMERS_REF`: Immutable transformers commit ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides, fetched as GitHub archive tarball).
-  - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `true`; keep enabled for Qwen3.5 nightly compatibility).
+  - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `true`; keep enabled for Qwen3.5 runtime compatibility).
 
 For the remaining settings, you may apply them as environment variables when running the container. Supported environment variables are listed in the [Environment Variables](#environment-variables) section.
 
@@ -160,13 +160,13 @@ docker build -t username/image:tag --build-arg MODEL_NAME="openchat/openchat_3.5
 
 ### Example: Building with vLLM Nightly
 
-Default builds already use the pinned nightly path. To force stable instead:
+Default builds already use the pinned stable path:
 
 ```bash
-docker build -t username/image:tag --build-arg VLLM_NIGHTLY=false --build-arg VLLM_VERSION=0.16.0 .
+docker build -t username/image:tag --build-arg VLLM_NIGHTLY=false --build-arg VLLM_VERSION=0.17.0 .
 ```
 
-To override nightly with the fork's pinned nightly build explicitly:
+To opt into the fork's pinned nightly fallback explicitly:
 
 ```bash
 docker build -t username/image:tag --build-arg VLLM_NIGHTLY=true --build-arg VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d --build-arg TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917 .

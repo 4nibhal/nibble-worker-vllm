@@ -136,7 +136,7 @@ def _warn_language_model_only_compat(hub: dict[str, Any]) -> list[str]:
         )
         if enabled:
             warnings.append(
-                f"preset '{preset_name}' enables LANGUAGE_MODEL_ONLY; verify runtime uses pinned nightly vLLM 0.17.0rc1.dev149+g40077ea3d (or another build exposing AsyncEngineArgs.language_model_only) because stable 0.16.0 rejects this arg"
+                f"preset '{preset_name}' enables LANGUAGE_MODEL_ONLY; verify runtime uses vLLM 0.17.0 (fork stable default) or pinned nightly 0.17.0rc1.dev149+g40077ea3d, and confirm AsyncEngineArgs.language_model_only is available"
             )
 
     return warnings

@@ -1,14 +1,15 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0025",
-  "objective": "Implement a fork-only runtime/build fix so nightly transformers pinning no longer depends on a git binary, while preserving existing Qwen3.5 FlashInfer strategy and deterministic version behavior.",
-  "scope": "Apply minimal, reversible fork-local changes to Docker nightly install behavior and runtime documentation across Dockerfile, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0026",
+  "objective": "Implement a fork-only runtime migration to make stable vLLM 0.17.0 the default path, keep FlashInfer enabled for Qwen3.5 compatibility, and preserve pinned deterministic nightly fallback.",
+  "scope": "Apply minimal, reversible fork-local updates across Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, README.md, docs/runtime-compatibility.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Nightly transformers install path uses immutable GitHub archive tarball for `TRANSFORMERS_REF` instead of `git+https` so build/runtime no longer depends on git for this pinned install.",
-    "Deterministic pinning remains unchanged (`VLLM_NIGHTLY_VERSION` and `TRANSFORMERS_REF` exact pins preserved).",
-    "Existing Qwen3.5 runtime strategy and FlashInfer guardrails remain unchanged.",
-    "Docs are updated so runtime/install wording matches archive-based install behavior.",
+    "Docker/build defaults set stable runtime path by default (`VLLM_NIGHTLY=false`, `VLLM_VERSION=0.17.0`) with no floating versions.",
+    "Nightly fallback remains optional and deterministic (`VLLM_NIGHTLY_VERSION` and `TRANSFORMERS_REF` exact pins preserved).",
+    "FlashInfer remains enabled by default for Qwen3.5 compatibility (`ENABLE_FLASHINFER=true`) and existing runtime guardrails remain in place.",
+    "Runtime compatibility messages in engine/config doctor no longer claim nightly or stable 0.16 defaults and now reflect stable 0.17 primary expectations.",
+    "README and runtime compatibility docs describe stable 0.17 as primary path and nightly as fallback only.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -17,8 +18,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this change set to restore the prior `git+https` transformers install path. If archive URL fetch regressions appear, temporary mitigation is to pin `VLLM_NIGHTLY=false` with stable `VLLM_VERSION=0.16.0` for affected builds while preparing a new pinned `TRANSFORMERS_REF` archive commit. Re-run validation gate before redeploy.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this migration to restore previous defaults (`VLLM_NIGHTLY=true`, `VLLM_VERSION=0.16.0`) and prior compatibility messaging. Operational mitigation without revert: set build args `VLLM_NIGHTLY=true`, `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`, and `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` while investigating stable-path regressions. Re-run full validation gate before redeploy.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are (1) larger CUDA devel image increasing build/pull time and (2) upstream FlashInfer wheel/toolchain drift causing runtime variance. Mitigations: keep version pins deterministic, keep runtime fallback guard to FLASH_ATTN on toolchain probe failure, fail fast for missing flashinfer on Qwen3.5, keep rollout staged 1->2->4, and retain fork-local rollback path.",
+  "threat_model": "Main risks are (1) stable 0.17 behavior deltas versus previous default runtime assumptions and (2) optional nightly wheel/index churn if fallback is used. Mitigations: keep all versions pinned, keep FlashInfer and toolchain guardrails intact, fail fast for missing language_model_only/flashinfer on Qwen3.5 path, keep rollout staged 1->2->4, and retain fork-local rollback path.",
   "ambiguities": []
 }

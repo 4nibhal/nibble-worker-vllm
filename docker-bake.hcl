@@ -19,11 +19,11 @@ variable "PYTORCH_CUDA_INDEX" {
 }
 
 variable "VLLM_VERSION" {
-  default = "0.16.0"
+  default = "0.17.0"
 }
 
 variable "VLLM_NIGHTLY" {
-  default = "true"
+  default = "false"
 }
 
 variable "VLLM_NIGHTLY_VERSION" {

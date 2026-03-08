@@ -4,18 +4,18 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 
 ## vLLM AsyncEngineArgs compatibility
 
-- Stable vLLM `0.16.0`: `language_model_only` is not available in `AsyncEngineArgs`.
-- Fork pinned nightly `0.17.0rc1.dev149+g40077ea3d`: `language_model_only` is available for Qwen3.5 text-only startup.
-- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`.
-- Default nightly path pins `transformers` by immutable commit via `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` and installs from the corresponding GitHub archive tarball.
-- Stable override remains supported via `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`.
+- Stable vLLM `0.17.0`: primary/default fork runtime path.
+- Stable `0.17.0` is expected to expose `AsyncEngineArgs.language_model_only` for Qwen3.5 text-only startup.
+- Default image path in this fork uses `VLLM_NIGHTLY=false` with `VLLM_VERSION=0.17.0`.
+- Optional nightly fallback remains available with `VLLM_NIGHTLY=true` and pinned `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`.
+- Nightly path pins `transformers` by immutable commit via `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` and installs from the corresponding GitHub archive tarball.
 - Override mechanism: pass `--build-arg TRANSFORMERS_REF=<commit-sha>` (or set bake var `TRANSFORMERS_REF`) when validating a different transformers revision.
 - Worker behavior: profile defaults are applied only when the target key exists in `AsyncEngineArgs.__dataclass_fields__`.
 - Qwen3.5 guard: startup now fails fast with an actionable error if `MODEL_NAME` targets Qwen3.5 but runtime does not expose `language_model_only` or if `LANGUAGE_MODEL_ONLY` is not true.
 
 ## FlashInfer prefill reliability guard
 
-- Root cause #1: Qwen3.5 nightly runtime path imports `flashinfer` directly from `vllm/model_executor/models/qwen3_next.py`, so removing FlashInfer from image/runtime caused `ModuleNotFoundError: No module named 'flashinfer'` before engine args were applied.
+- Root cause #1: Qwen3.5 runtime path imports `flashinfer` directly from `vllm/model_executor/models/qwen3_next.py`, so removing FlashInfer from image/runtime caused `ModuleNotFoundError: No module named 'flashinfer'` before engine args were applied.
 - Root cause #2: when FlashInfer prefill JIT was actually reached, startup failed with `ninja ... gdn_prefill_sm90` exit `127` on images that lacked build tools (`nvcc`, `ninja`, C++ compiler).
 - Fork default now keeps FlashInfer installed/available (`ENABLE_FLASHINFER=true`) and ships build tools in the runtime image (`ninja`, C++ compiler, nvcc-capable CUDA devel image path).
 - Runtime guardrails remain explicit and deterministic:
@@ -50,7 +50,7 @@ Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset 
 
 ## Deployment gate checklist
 
-- Release safety note: nightly wheel artifacts can churn/disappear from `wheels.vllm.ai/nightly`; before creating a release tag, run `docker buildx bake --print` and confirm the pinned `VLLM_NIGHTLY_VERSION` still resolves in the nightly index.
+- Release safety note (nightly fallback only): nightly wheel artifacts can churn/disappear from `wheels.vllm.ai/nightly`; before creating a release tag that enables nightly, run `docker buildx bake --print` and confirm the pinned `VLLM_NIGHTLY_VERSION` still resolves in the nightly index.
 
 Run this gate before release or endpoint cutover:
 
