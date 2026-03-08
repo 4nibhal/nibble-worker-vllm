@@ -72,6 +72,7 @@ SAFE_MAX_NUM_BATCHED_TOKENS_CAP_DEFAULT = 8192
 SAFE_MAX_MODEL_LEN_CAP_DEFAULT = 32768
 LARGE_CONTEXT_CHUNKED_PREFILL_THRESHOLD = 32768
 QWEN35_QUALITY_CONTEXT_TARGET = 131072
+QWEN35_SERVERLESS_LATENCY_CONTEXT_DEFAULT = 32768
 STRICT_CONFIG_ENV_KEY = "STRICT_CONFIG"
 DISABLE_FLASHINFER_PREFILL_ENV_KEY = "DISABLE_FLASHINFER_PREFILL"
 ENABLE_FLASHINFER_ENV_KEY = "ENABLE_FLASHINFER"
@@ -379,7 +380,7 @@ def _resolve_runtime_profile(model_name: str) -> str:
     return RUNTIME_PROFILE_BALANCED
 
 
-def _compute_profile_defaults(model_name: str) -> dict:
+def _compute_profile_defaults(model_name: str) -> tuple[dict, str, str]:
     model_profile = _resolve_model_profile(model_name)
     runtime_profile = _resolve_runtime_profile(model_name)
     profile = PROFILE_DEFAULTS[model_profile]
@@ -398,7 +399,32 @@ def _compute_profile_defaults(model_name: str) -> dict:
         runtime_profile,
         model_profile,
     )
-    return computed
+    return computed, model_profile, runtime_profile
+
+
+def _apply_qwen_serverless_latency_guardrail(
+    args: dict,
+    model_name: str,
+    runtime_profile: str,
+    explicit_max_model_len: bool,
+) -> None:
+    if explicit_max_model_len or not _is_qwen3_5_model(model_name):
+        return
+    if runtime_profile not in (RUNTIME_PROFILE_SAFE, RUNTIME_PROFILE_BALANCED):
+        return
+
+    current_max_model_len = args.get("max_model_len")
+    if (
+        current_max_model_len is None
+        or current_max_model_len > QWEN35_SERVERLESS_LATENCY_CONTEXT_DEFAULT
+    ):
+        args["max_model_len"] = QWEN35_SERVERLESS_LATENCY_CONTEXT_DEFAULT
+        logging.info(
+            "Latency guardrail: using MAX_MODEL_LEN=%d for Qwen3.5 %s profile when MAX_MODEL_LEN is not explicitly set. "
+            "Set MAX_MODEL_LEN (and SAFE_MAX_MODEL_LEN_CAP) explicitly to opt into long-context mode.",
+            QWEN35_SERVERLESS_LATENCY_CONTEXT_DEFAULT,
+            runtime_profile,
+        )
 
 
 def _get_safe_max_num_batched_tokens_cap() -> int:
@@ -761,7 +787,14 @@ def get_engine_args():
     }
 
     model_name = str(args.get("model", ""))
-    profile_defaults = _compute_profile_defaults(model_name)
+    profile_defaults, _, runtime_profile = _compute_profile_defaults(model_name)
+    explicit_max_model_len = os.getenv("MAX_MODEL_LEN") not in (
+        None,
+        "",
+        "None",
+        "none",
+        "0",
+    )
     profile_env_map = {
         "max_model_len": "MAX_MODEL_LEN",
         "max_num_batched_tokens": "MAX_NUM_BATCHED_TOKENS",
@@ -793,6 +826,13 @@ def get_engine_args():
         ):
             continue
         args[key] = value
+
+    _apply_qwen_serverless_latency_guardrail(
+        args=args,
+        model_name=model_name,
+        runtime_profile=runtime_profile,
+        explicit_max_model_len=explicit_max_model_len,
+    )
 
     _ensure_qwen3_5_runtime_compat(args, valid_fields)
 
@@ -856,13 +896,6 @@ def get_engine_args():
     _normalize_known_bad_zero_overrides(args)
 
     max_model_len = args.get("max_model_len")
-    explicit_max_model_len = os.getenv("MAX_MODEL_LEN") not in (
-        None,
-        "",
-        "None",
-        "none",
-        "0",
-    )
     resolved_model_max_model_len = None
     if not explicit_max_model_len or max_model_len is None:
         resolved_model_max_model_len = _resolve_max_model_len(
@@ -935,10 +968,16 @@ def get_engine_args():
             )
 
         if max_model_len is None or max_model_len < QWEN35_QUALITY_CONTEXT_TARGET:
-            logging.warning(
-                "Qwen3.5 quality guidance: MAX_MODEL_LEN=%s is below recommended 131072 for 128k context quality-first mode.",
-                max_model_len,
-            )
+            if explicit_max_model_len:
+                logging.warning(
+                    "Qwen3.5 quality guidance: MAX_MODEL_LEN=%s is below recommended 131072 for 128k context quality-first mode.",
+                    max_model_len,
+                )
+            else:
+                logging.info(
+                    "Qwen3.5 serverless default: using MAX_MODEL_LEN=%s. Set MAX_MODEL_LEN=131072 and SAFE_MAX_MODEL_LEN_CAP=131072 to opt into long-context mode.",
+                    max_model_len,
+                )
 
     explicit_max_num_batched_tokens = os.getenv("MAX_NUM_BATCHED_TOKENS") not in (
         None,

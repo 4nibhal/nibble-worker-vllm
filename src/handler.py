@@ -1,4 +1,5 @@
 import sys
+import os
 import multiprocessing
 import traceback
 import runpod
@@ -47,6 +48,18 @@ if __name__ == "__main__" or multiprocessing.current_process().name == "MainProc
         vllm_engine = vLLMEngine()
         openai_engine = OpenAIvLLMEngine(vllm_engine)
         log.info("vLLM engines initialized successfully")
+        max_model_len = getattr(vllm_engine.engine_args, "max_model_len", None)
+        log.info(
+            f"Startup profile: MAX_CONCURRENCY={vllm_engine.max_concurrency}, MAX_MODEL_LEN={max_model_len}, RUNTIME_PROFILE={os.getenv('RUNTIME_PROFILE', 'auto')}"
+        )
+        if (
+            vllm_engine.max_concurrency == 1
+            and isinstance(max_model_len, int)
+            and max_model_len >= 32768
+        ):
+            log.warning(
+                "Cold-start hint: this latency-first worker can queue under burst traffic. For production, use RunPod Active Workers >= 1 and Max Workers >= 2."
+            )
     except Exception as e:
         log.error(f"Worker startup failed: {e}\n{traceback.format_exc()}")
         sys.exit(1)

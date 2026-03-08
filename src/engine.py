@@ -34,6 +34,8 @@ from utils import (
     sanitize_openai_response_payload,
 )
 
+COLD_START_CONTEXT_HINT_THRESHOLD = 32768
+
 
 class vLLMEngine:
     def __init__(self, engine=None):
@@ -72,6 +74,7 @@ class vLLMEngine:
             DEFAULT_MIN_BATCH_SIZE,
             aliases=("DEFAULT_MIN_BATCH_SIZE",),
         )
+        self._log_serverless_latency_hints()
 
     def _read_int_env(self, key: str, default: int, aliases=()):
         for env_key in (key, *aliases):
@@ -156,6 +159,18 @@ class vLLMEngine:
             except Exception as e:
                 logging.error(f"Failed to create fallback tokenizer: {e}")
                 raise e
+
+    def _log_serverless_latency_hints(self):
+        max_model_len = getattr(self.engine_args, "max_model_len", None)
+        if self.max_concurrency == 1 and (
+            max_model_len is not None
+            and max_model_len >= COLD_START_CONTEXT_HINT_THRESHOLD
+        ):
+            logging.warning(
+                "Serverless latency hint: MAX_CONCURRENCY=1 with max_model_len=%s can amplify queue delay and cold-start impact under bursts. "
+                "For production, keep this worker latency-first and configure RunPod endpoint Active Workers>=1 and Max Workers>=2.",
+                max_model_len,
+            )
 
     def dynamic_batch_size(self, current_batch_size, batch_size_growth_factor):
         return min(

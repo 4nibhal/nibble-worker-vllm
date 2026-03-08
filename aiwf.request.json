@@ -1,16 +1,15 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0027",
-  "objective": "Implement the first optimization-focused fork-only release on top of current functional baseline: sanitize OpenAI/OpenRouter response contracts, harden stream parsing, and reduce user-facing error leakage while preserving raw SSE opt-in.",
-  "scope": "Apply minimal, reversible fork-local updates across src/engine.py, src/utils.py, src/handler.py, .runpod/hub.json, README.md, docs/runtime-compatibility.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0028",
+  "objective": "Deliver one substantial fork-only optimization release on top of v1.1.18 baseline to improve practical serverless latency/cost efficiency for Qwen3.5 while preserving current working inference behavior.",
+  "scope": "Apply minimal, reversible fork-local updates across .runpod/hub.json, src/engine_args.py, src/engine.py, src/handler.py, README.md, docs/runtime-compatibility.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "When `RAW_OPENAI_OUTPUT=false`, OpenAI non-stream responses are normalized to stable JSON objects with expected top-level and per-choice key presence where possible.",
-    "When `RAW_OPENAI_OUTPUT=false`, OpenAI stream parsing accepts only SSE `data:` lines, ignores control/comment lines, and preserves `[DONE]` stream termination semantics.",
-    "Malformed streamed chunks do not crash parsing; worker emits structured error payload and logs detailed trace server-side.",
-    "User-facing error payloads avoid raw exception internals; detailed exception traces remain in logs.",
-    "RunPod hub default for `RAW_OPENAI_OUTPUT` is `false`, while `RAW_OPENAI_OUTPUT=true` keeps raw SSE passthrough behavior.",
-    "README and runtime compatibility docs describe exact OpenAI/OpenRouter structured mode behavior and raw mode opt-in.",
+    "Qwen RunPod Hub presets are latency-first by default: `MAX_MODEL_LEN=32768`, `SAFE_MAX_MODEL_LEN_CAP=32768`, safe/balanced `MAX_NUM_SEQS=1`, safe/balanced `MAX_CONCURRENCY=1`, throughput `MAX_NUM_SEQS=2`, throughput `MAX_CONCURRENCY=2`, conservative `MAX_NUM_BATCHED_TOKENS` values, and `ENFORCE_EAGER=true` for safe/balanced.",
+    "Qwen engine args include a guardrail that keeps serverless safe/balanced profile on 32k context when `MAX_MODEL_LEN` is not explicitly set, while preserving explicit long-context opt-in behavior.",
+    "Startup logs provide actionable cold-start/queue hints when latency-first concurrency is combined with large context.",
+    "OpenRouter/OpenAI structured output behavior from v1.1.19 remains unchanged.",
+    "README and runtime compatibility docs include explicit production serverless tuning guidance, active worker recommendations, and long-context opt-in instructions.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -19,8 +18,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this release to restore previous OpenAI payload behavior and `RAW_OPENAI_OUTPUT=true` hub default. Operational mitigation without code rollback: set `RAW_OPENAI_OUTPUT=true` on endpoint config to force raw SSE passthrough while investigating parser/sanitization regressions. Re-run full validation gate before redeploy.",
-  "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). Validate OpenAI non-stream and stream requests (including malformed stream simulation) at each stage before scaling.",
-  "threat_model": "Main risks are (1) client-side assumptions about previous raw chunk structure in structured mode and (2) malformed upstream chunk handling causing unexpected structured errors. Mitigations: keep raw passthrough opt-in unchanged, keep changes minimal and centralized in utils helpers, log full stack traces server-side, and roll out 1->2->4 with fast rollback via env toggle or revert.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this optimization release to restore previous preset and startup behavior. Fast operational rollback without rebuild: pin endpoint env to prior values (`MAX_MODEL_LEN=131072`, `SAFE_MAX_MODEL_LEN_CAP=131072`, previous concurrency/seq targets) and remove latency-first overrides. Validate with py_compile, config_doctor, JSON parse, and docker buildx bake --print before redeploy.",
+  "deploy_plan": "Deploy fork-only as one release. In production, keep Active Workers >= 1 and Max Workers >= 2; verify p50/p95 latency, queue delay, cold-start rate, and token throughput on representative short prompts before and after rollout.",
+  "threat_model": "Main risks are (1) reduced long-context headroom by default if operators expect implicit 128k and (2) lower per-worker throughput from conservative concurrency defaults under sustained high load. Mitigations: explicit long-context opt-in envs, throughput preset retained for controlled scale-up, and rollback via env or fork-local revert.",
   "ambiguities": []
 }

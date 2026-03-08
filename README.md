@@ -79,14 +79,40 @@ For the complete list of all available environment variables, examples, and deta
 
 Use these presets as the default starting point for this fork:
 
-- `qwen35-h100-safe`: most conservative Qwen 3.5 27B startup defaults.
-- `qwen35-h100-balanced`: recommended default for mixed latency/throughput.
-- `qwen35-h100-throughput`: higher-throughput profile when load is stable.
+- `qwen35-h100-safe`: latency-first default (`MAX_MODEL_LEN=32768`, `MAX_NUM_SEQS=1`, `MAX_CONCURRENCY=1`, `MAX_NUM_BATCHED_TOKENS=4096`, `ENFORCE_EAGER=true`).
+- `qwen35-h100-balanced`: latency-first with slightly higher scheduler headroom (`MAX_MODEL_LEN=32768`, `MAX_NUM_SEQS=1`, `MAX_CONCURRENCY=1`, `MAX_NUM_BATCHED_TOKENS=6144`, `ENFORCE_EAGER=true`).
+- `qwen35-h100-throughput`: controlled throughput profile (`MAX_MODEL_LEN=32768`, `MAX_NUM_SEQS=2`, `MAX_CONCURRENCY=2`, `MAX_NUM_BATCHED_TOKENS=8192`).
 - `smollm2-compat-check`: lightweight compatibility and startup sanity checks.
 
 Safety warning: leave optional numeric overrides (`NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, `MAX_PARALLEL_LOADING_WORKERS`) empty/unset unless you have a clear tuning reason. Do not set these to `0`.
 
 For version and preset guardrails, see [Runtime Compatibility and Guardrails](docs/runtime-compatibility.md).
+
+### Production Serverless Tuning (Latency-first)
+
+For RunPod serverless production where p95/p99 latency and cost stability matter most:
+
+- Keep endpoint `Active Workers >= 1` to reduce repeated cold starts.
+- Set `Max Workers >= 2` so bursts can scale out instead of queueing behind one worker.
+- Prefer autoscaling mode that keeps one warm worker during business hours.
+- Start with this env set (Qwen3.5-27B):
+
+```bash
+RUNTIME_PROFILE=safe
+MODEL_PROFILE=qwen3_5_27b
+MAX_MODEL_LEN=32768
+SAFE_MAX_MODEL_LEN_CAP=32768
+MAX_NUM_SEQS=1
+MAX_CONCURRENCY=1
+MAX_NUM_BATCHED_TOKENS=4096
+ENFORCE_EAGER=true
+ENABLE_FLASHINFER=true
+ATTENTION_BACKEND=FLASHINFER
+DISABLE_FLASHINFER_PREFILL=false
+LANGUAGE_MODEL_ONLY=true
+```
+
+Long-context operation is explicit opt-in only in this fork. If you need 128k mode, set both `MAX_MODEL_LEN=131072` and `SAFE_MAX_MODEL_LEN_CAP=131072` intentionally.
 
 ### Runtime Reliability Defaults
 

@@ -12,6 +12,15 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 - Override mechanism: pass `--build-arg TRANSFORMERS_REF=<commit-sha>` (or set bake var `TRANSFORMERS_REF`) when validating a different transformers revision.
 - Worker behavior: profile defaults are applied only when the target key exists in `AsyncEngineArgs.__dataclass_fields__`.
 - Qwen3.5 guard: startup now fails fast with an actionable error if `MODEL_NAME` targets Qwen3.5 but runtime does not expose `language_model_only` or if `LANGUAGE_MODEL_ONLY` is not true.
+- Qwen3.5 latency guardrail: when `MAX_MODEL_LEN` is not explicitly set and runtime profile is `safe`/`balanced`, worker keeps `max_model_len=32768` to prevent silent drift to costly long-context defaults.
+- Long-context remains opt-in: set both `MAX_MODEL_LEN=131072` and `SAFE_MAX_MODEL_LEN_CAP=131072` intentionally.
+
+## Production serverless tuning (RunPod)
+
+- Baseline for latency/cost efficiency: `MAX_CONCURRENCY=1`, `MAX_NUM_SEQS=1`, `MAX_MODEL_LEN=32768`, conservative `MAX_NUM_BATCHED_TOKENS`, and `ENFORCE_EAGER=true`.
+- Throughput profile should scale carefully (this fork keeps Qwen throughput preset at `MAX_CONCURRENCY=2`, `MAX_NUM_SEQS=2`).
+- Repeated cold starts are usually an endpoint autoscaling issue, not only an engine-arg issue.
+- For production endpoints, keep at least one warm worker (`Active Workers >= 1`) and allow horizontal scale (`Max Workers >= 2`) to reduce queue spikes.
 
 ## FlashInfer prefill reliability guard
 
