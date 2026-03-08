@@ -21,7 +21,7 @@ RUN python3 -m pip install --upgrade pip && \
         else \
             python3 -m pip install "vllm==${VLLM_NIGHTLY_VERSION}" --pre --index-url https://pypi.org/simple --extra-index-url https://wheels.vllm.ai/nightly; \
         fi && \
-        python3 -m pip install "git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"; \
+        python3 -m pip install "https://github.com/huggingface/transformers/archive/${TRANSFORMERS_REF}.tar.gz"; \
     else \
         if [ "${ENABLE_FLASHINFER}" = "true" ]; then \
             python3 -m pip install "vllm[flashinfer]==${VLLM_VERSION}" --extra-index-url https://download.pytorch.org/whl/${PYTORCH_CUDA_INDEX}; \

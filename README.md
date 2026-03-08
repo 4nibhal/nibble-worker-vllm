@@ -95,7 +95,7 @@ For version and preset guardrails, see [Runtime Compatibility and Guardrails](do
 - Runtime guardrails remain explicit: if FlashInfer backend is requested but toolchain probe fails, worker auto-falls back to `FLASH_ATTN` and logs a warning.
 - Qwen presets are coherent with this strategy and now use `ATTENTION_BACKEND=FLASHINFER` with `DISABLE_FLASHINFER_PREFILL=false`.
 - Default image path uses pinned nightly `vllm==0.16.1rc1.dev275+ga708ef594` for Qwen3.5 text-only compatibility (`LANGUAGE_MODEL_ONLY=true`).
-- Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF`.
+- Default nightly path also pins `transformers` to immutable commit `421c7f6248e28d24d84ee000252a1e71fbc24917` via `TRANSFORMERS_REF` and installs from the matching GitHub archive tarball (no git binary required).
 - Stable override remains available as `VLLM_VERSION=0.16.0` when `VLLM_NIGHTLY=false`.
 - Presets set `NUM_GPU_BLOCKS_OVERRIDE`, `MAX_CPU_LORAS`, and `MAX_PARALLEL_LOADING_WORKERS` to `"None"` explicitly, so RunPod keeps them unset.
 - Worker config treats `0` for those optional overrides as invalid/unset behavior; use a positive integer only when intentionally tuning.
@@ -147,7 +147,7 @@ To build an image with the model baked in, you must specify the following docker
   - `TOKENIZER_REVISION`: Tokenizer revision to load (default: `main`).
   - `VLLM_NIGHTLY`: Enables nightly install path (default: `true` for this fork image path).
   - `VLLM_NIGHTLY_VERSION`: Pinned nightly vLLM build (default: `0.16.1rc1.dev275+ga708ef594`; must stay exact/pinned).
-  - `TRANSFORMERS_REF`: Immutable transformers git ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides).
+  - `TRANSFORMERS_REF`: Immutable transformers commit ref used on nightly path (default: `421c7f6248e28d24d84ee000252a1e71fbc24917`; commit SHA recommended for overrides, fetched as GitHub archive tarball).
   - `ENABLE_FLASHINFER`: Build-time gate for FlashInfer package availability (default: `true`; keep enabled for Qwen3.5 nightly compatibility).
 
 For the remaining settings, you may apply them as environment variables when running the container. Supported environment variables are listed in the [Environment Variables](#environment-variables) section.

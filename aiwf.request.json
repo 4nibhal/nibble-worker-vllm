@@ -1,14 +1,14 @@
 {
   "version": 1,
   "request_id": "REQ-NIBBLE-WORKER-VLLM-0025",
-  "objective": "Implement a fork-only runtime fix so Qwen3.5 presets boot reliably after qwen3_next started importing flashinfer directly, while preventing prior FlashInfer JIT exit-127 regressions.",
-  "scope": "Apply minimal, reversible fork-local changes to Docker/runtime defaults, engine arg guardrails, RunPod presets, and runtime documentation across Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, .runpod/hub.json, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
+  "objective": "Implement a fork-only runtime/build fix so nightly transformers pinning no longer depends on a git binary, while preserving existing Qwen3.5 FlashInfer strategy and deterministic version behavior.",
+  "scope": "Apply minimal, reversible fork-local changes to Docker nightly install behavior and runtime documentation across Dockerfile, docs/runtime-compatibility.md, README.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Qwen3.5 runtime path no longer fails with `ModuleNotFoundError: No module named 'flashinfer'` on fork defaults.",
-    "Runtime image includes required FlashInfer JIT toolchain components (ninja, C++ compiler, nvcc-capable path) while keeping CUDA 12.6 baseline for broad host-driver compatibility.",
-    "Engine args keep guardrails and remove contradictory preset posture that previously hard-disabled FlashInfer for Qwen3.5.",
-    "RunPod Qwen3.5 presets are coherent with the chosen strategy and docs explain both root cause and fallback behavior.",
+    "Nightly transformers install path uses immutable GitHub archive tarball for `TRANSFORMERS_REF` instead of `git+https` so build/runtime no longer depends on git for this pinned install.",
+    "Deterministic pinning remains unchanged (`VLLM_NIGHTLY_VERSION` and `TRANSFORMERS_REF` exact pins preserved).",
+    "Existing Qwen3.5 runtime strategy and FlashInfer guardrails remain unchanged.",
+    "Docs are updated so runtime/install wording matches archive-based install behavior.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -17,7 +17,7 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this change set to restore prior FlashInfer hard-disable behavior and base image defaults. If startup regressions appear after rollout, temporary mitigation is endpoint env override `ATTENTION_BACKEND=FLASH_ATTN` and `DISABLE_FLASHINFER_PREFILL=true` while retaining installed FlashInfer package for qwen3_next import compatibility. If container/toolchain regressions are detected, revert `CUDA_IMAGE_TAG` default to previous base image and re-run validation gate before redeploy.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this change set to restore the prior `git+https` transformers install path. If archive URL fetch regressions appear, temporary mitigation is to pin `VLLM_NIGHTLY=false` with stable `VLLM_VERSION=0.16.0` for affected builds while preparing a new pinned `TRANSFORMERS_REF` archive commit. Re-run validation gate before redeploy.",
   "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
   "threat_model": "Main risks are (1) larger CUDA devel image increasing build/pull time and (2) upstream FlashInfer wheel/toolchain drift causing runtime variance. Mitigations: keep version pins deterministic, keep runtime fallback guard to FLASH_ATTN on toolchain probe failure, fail fast for missing flashinfer on Qwen3.5, keep rollout staged 1->2->4, and retain fork-local rollback path.",
   "ambiguities": []
