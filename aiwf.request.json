@@ -1,15 +1,16 @@
 {
   "version": 1,
-  "request_id": "REQ-NIBBLE-WORKER-VLLM-0026",
-  "objective": "Implement a fork-only runtime migration to make stable vLLM 0.17.0 the default path, keep FlashInfer enabled for Qwen3.5 compatibility, and preserve pinned deterministic nightly fallback.",
-  "scope": "Apply minimal, reversible fork-local updates across Dockerfile, docker-bake.hcl, src/engine_args.py, scripts/config_doctor.py, README.md, docs/runtime-compatibility.md, and aiwf.request.json.",
+  "request_id": "REQ-NIBBLE-WORKER-VLLM-0027",
+  "objective": "Implement the first optimization-focused fork-only release on top of current functional baseline: sanitize OpenAI/OpenRouter response contracts, harden stream parsing, and reduce user-facing error leakage while preserving raw SSE opt-in.",
+  "scope": "Apply minimal, reversible fork-local updates across src/engine.py, src/utils.py, src/handler.py, .runpod/hub.json, README.md, docs/runtime-compatibility.md, and aiwf.request.json.",
   "risk_tier": "T2-high",
   "acceptance_criteria": [
-    "Docker/build defaults set stable runtime path by default (`VLLM_NIGHTLY=false`, `VLLM_VERSION=0.17.0`) with no floating versions.",
-    "Nightly fallback remains optional and deterministic (`VLLM_NIGHTLY_VERSION` and `TRANSFORMERS_REF` exact pins preserved).",
-    "FlashInfer remains enabled by default for Qwen3.5 compatibility (`ENABLE_FLASHINFER=true`) and existing runtime guardrails remain in place.",
-    "Runtime compatibility messages in engine/config doctor no longer claim nightly or stable 0.16 defaults and now reflect stable 0.17 primary expectations.",
-    "README and runtime compatibility docs describe stable 0.17 as primary path and nightly as fallback only.",
+    "When `RAW_OPENAI_OUTPUT=false`, OpenAI non-stream responses are normalized to stable JSON objects with expected top-level and per-choice key presence where possible.",
+    "When `RAW_OPENAI_OUTPUT=false`, OpenAI stream parsing accepts only SSE `data:` lines, ignores control/comment lines, and preserves `[DONE]` stream termination semantics.",
+    "Malformed streamed chunks do not crash parsing; worker emits structured error payload and logs detailed trace server-side.",
+    "User-facing error payloads avoid raw exception internals; detailed exception traces remain in logs.",
+    "RunPod hub default for `RAW_OPENAI_OUTPUT` is `false`, while `RAW_OPENAI_OUTPUT=true` keeps raw SSE passthrough behavior.",
+    "README and runtime compatibility docs describe exact OpenAI/OpenRouter structured mode behavior and raw mode opt-in.",
     "Validation gate commands complete: py_compile, config_doctor, JSON parse, and docker buildx bake --print."
   ],
   "tests_expected": [
@@ -18,8 +19,8 @@
     "python -c \"import json; json.load(open('.runpod/hub.json')); json.load(open('aiwf.request.json')); print('json ok')\"",
     "docker buildx bake --print"
   ],
-  "rollback_plan": "Immediate rollback is fork-local git revert of this migration to restore previous defaults (`VLLM_NIGHTLY=true`, `VLLM_VERSION=0.16.0`) and prior compatibility messaging. Operational mitigation without revert: set build args `VLLM_NIGHTLY=true`, `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`, and `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` while investigating stable-path regressions. Re-run full validation gate before redeploy.",
-  "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). At each stage verify cold start, successful model load, and one representative inference before scaling.",
-  "threat_model": "Main risks are (1) stable 0.17 behavior deltas versus previous default runtime assumptions and (2) optional nightly wheel/index churn if fallback is used. Mitigations: keep all versions pinned, keep FlashInfer and toolchain guardrails intact, fail fast for missing language_model_only/flashinfer on Qwen3.5 path, keep rollout staged 1->2->4, and retain fork-local rollback path.",
+  "rollback_plan": "Immediate rollback is fork-local git revert of this release to restore previous OpenAI payload behavior and `RAW_OPENAI_OUTPUT=true` hub default. Operational mitigation without code rollback: set `RAW_OPENAI_OUTPUT=true` on endpoint config to force raw SSE passthrough while investigating parser/sanitization regressions. Re-run full validation gate before redeploy.",
+  "deploy_plan": "Deploy fork-only in staged rollout (1->2->4 workers). Validate OpenAI non-stream and stream requests (including malformed stream simulation) at each stage before scaling.",
+  "threat_model": "Main risks are (1) client-side assumptions about previous raw chunk structure in structured mode and (2) malformed upstream chunk handling causing unexpected structured errors. Mitigations: keep raw passthrough opt-in unchanged, keep changes minimal and centralized in utils helpers, log full stack traces server-side, and roll out 1->2->4 with fast rollback via env toggle or revert.",
   "ambiguities": []
 }

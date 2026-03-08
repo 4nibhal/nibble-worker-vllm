@@ -39,6 +39,16 @@ Runtime parsing treats `"None"`, `"none"`, and `""` as unset values.
 
 Guardrail: literal `0` for these keys is forbidden and treated as invalid/unset behavior.
 
+## OpenAI/OpenRouter payload compatibility
+
+- Fork default now sets `RAW_OPENAI_OUTPUT=false` (structured JSON mode) for safer OpenAI/OpenRouter interoperability.
+- Structured stream mode parses only SSE `data:` lines, ignores non-data control/comment lines, and preserves `data: [DONE]` as stream termination semantics.
+- For both non-stream and structured stream responses, payload sanitation ensures stable key presence where possible without fabricating content:
+  - top-level keys: `id`, `object`, `created`, `model`, `choices`
+  - per-choice keys: `index`, `finish_reason`
+- On malformed backend stream chunks, worker returns a structured error payload and logs full traceback details server-side.
+- Raw passthrough remains opt-in via `RAW_OPENAI_OUTPUT=true`.
+
 ## CUDA host-driver compatibility
 
 - Default container base is CUDA 12.6 devel (`CUDA_IMAGE_TAG=12.6.3-devel-ubuntu22.04`) with PyTorch wheels from `cu126`.

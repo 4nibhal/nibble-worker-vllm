@@ -230,6 +230,14 @@ You can deploy **any model on Hugging Face** that is supported by vLLM. For the 
 
 The vLLM Worker is fully compatible with OpenAI's API, and you can use it with any OpenAI Codebase by changing only 3 lines in total. The supported routes are <ins>Chat Completions</ins> and <ins>Models</ins> - with both streaming and non-streaming.
 
+## OpenAI/OpenRouter response mode (fork default)
+
+- `RAW_OPENAI_OUTPUT=false` (default): worker normalizes OpenAI route payloads into structured JSON objects for both non-stream and stream modes.
+- Streaming parser accepts only SSE `data:` lines, ignores control/comment lines, and treats `data: [DONE]` as stream termination.
+- Normalized chunks preserve original content while ensuring stable top-level keys where available (`id`, `object`, `created`, `model`, `choices`) and `choices[*].index`/`choices[*].finish_reason` key presence.
+- Malformed backend stream chunks return a structured error payload instead of crashing the parser.
+- Set `RAW_OPENAI_OUTPUT=true` to keep raw SSE passthrough behavior unchanged.
+
 ## Modifying your OpenAI Codebase to use your deployed vLLM Worker
 
 **Python** (similar to Node.js, etc.):

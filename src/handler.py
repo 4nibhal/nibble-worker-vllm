@@ -3,6 +3,7 @@ import multiprocessing
 import traceback
 import runpod
 from runpod import RunPodLogger
+from utils import create_error_response
 
 log = RunPodLogger()
 
@@ -13,6 +14,7 @@ openai_engine = None
 async def handler(job):
     try:
         from utils import JobInput
+
         job_input = JobInput(job["input"])
         engine = openai_engine if job_input.openai_route else vllm_engine
         results_generator = engine.generate(job_input)
@@ -30,12 +32,15 @@ async def handler(job):
             log.error("Terminating worker due to CUDA/GPU error")
             sys.exit(1)
 
-        yield {"error": error_str}
+        yield {
+            "error": create_error_response(
+                "Request failed due to an internal runtime error."
+            ).model_dump()
+        }
 
 
 # Only run in main process to prevent re-initialization when vLLM spawns worker subprocesses
 if __name__ == "__main__" or multiprocessing.current_process().name == "MainProcess":
-
     try:
         from engine import vLLMEngine, OpenAIvLLMEngine
 
@@ -49,7 +54,9 @@ if __name__ == "__main__" or multiprocessing.current_process().name == "MainProc
     runpod.serverless.start(
         {
             "handler": handler,
-            "concurrency_modifier": lambda x: vllm_engine.max_concurrency if vllm_engine else 1,
+            "concurrency_modifier": lambda x: (
+                vllm_engine.max_concurrency if vllm_engine else 1
+            ),
             "return_aggregate_stream": True,
         }
     )

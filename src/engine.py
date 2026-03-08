@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+from http import HTTPStatus
 from typing import AsyncGenerator, Optional
 
 from dotenv import load_dotenv
@@ -24,7 +25,14 @@ from constants import (
 )
 from engine_args import get_engine_args
 from tokenizer import TokenizerWrapper
-from utils import BatchSize, DummyRequest, JobInput, create_error_response
+from utils import (
+    BatchSize,
+    DummyRequest,
+    JobInput,
+    create_error_response,
+    parse_and_sanitize_openai_sse_chunk,
+    sanitize_openai_response_payload,
+)
 
 
 class vLLMEngine:
@@ -167,8 +175,15 @@ class vLLMEngine:
                 min_batch_size=job_input.min_batch_size,
             ):
                 yield batch
-        except Exception as e:
-            yield {"error": create_error_response(str(e)).model_dump()}
+        except Exception:
+            logging.exception("vLLM generation failed")
+            yield {
+                "error": create_error_response(
+                    "Generation failed due to an internal runtime error.",
+                    err_type="InternalServerError",
+                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                ).model_dump()
+            }
 
     async def _generate_vllm(
         self,
@@ -287,7 +302,7 @@ class OpenAIvLLMEngine(vLLMEngine):
             logging.info("OpenAI engines will initialize on first request")
 
         # Handle both integer and boolean string values for RAW_OPENAI_OUTPUT
-        self.raw_openai_output = self._read_bool_env("RAW_OPENAI_OUTPUT", True)
+        self.raw_openai_output = self._read_bool_env("RAW_OPENAI_OUTPUT", False)
 
     def _load_lora_adapters(self):
         adapters = []
@@ -424,8 +439,13 @@ class OpenAIvLLMEngine(vLLMEngine):
 
         try:
             request = request_class(**openai_request.openai_input)
-        except Exception as e:
-            yield create_error_response(str(e)).model_dump()
+        except Exception:
+            logging.exception("Invalid OpenAI request payload")
+            yield create_error_response(
+                "Invalid OpenAI request payload.",
+                err_type="BadRequestError",
+                status_code=HTTPStatus.BAD_REQUEST,
+            ).model_dump()
             return
 
         dummy_request = DummyRequest()
@@ -436,7 +456,20 @@ class OpenAIvLLMEngine(vLLMEngine):
         if not openai_request.openai_input.get("stream") or isinstance(
             response_generator, ErrorResponse
         ):
-            yield response_generator.model_dump()
+            response_payload = response_generator.model_dump()
+            if self.raw_openai_output or isinstance(response_generator, ErrorResponse):
+                yield response_payload
+                return
+
+            try:
+                yield sanitize_openai_response_payload(response_payload)
+            except Exception:
+                logging.exception("Malformed non-stream OpenAI response payload")
+                yield create_error_response(
+                    "Malformed OpenAI response payload from backend.",
+                    err_type="InternalServerError",
+                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                ).model_dump()
         else:
             batch = []
             batch_token_counter = 0
@@ -447,26 +480,38 @@ class OpenAIvLLMEngine(vLLMEngine):
             )
 
             async for chunk_str in response_generator:
-                if "data" in chunk_str:
-                    if self.raw_openai_output:
-                        data = chunk_str
-                    elif "[DONE]" in chunk_str:
-                        continue
-                    else:
-                        data = (
-                            json.loads(chunk_str.removeprefix("data: ").rstrip("\n\n"))
-                            if not self.raw_openai_output
-                            else chunk_str
+                if self.raw_openai_output:
+                    if "data:" in chunk_str:
+                        batch.append(chunk_str)
+                        batch_token_counter += 1
+                else:
+                    try:
+                        parsed_chunks, done_seen = parse_and_sanitize_openai_sse_chunk(
+                            chunk_str
                         )
-                    batch.append(data)
-                    batch_token_counter += 1
-                    if batch_token_counter >= batch_size.current_batch_size:
-                        if self.raw_openai_output:
-                            batch = "".join(batch)
-                        yield batch
-                        batch = []
-                        batch_token_counter = 0
-                        batch_size.update()
+                    except Exception:
+                        logging.exception("Malformed streamed OpenAI response chunk")
+                        yield create_error_response(
+                            "Malformed streamed OpenAI response payload.",
+                            err_type="InternalServerError",
+                            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                        ).model_dump()
+                        return
+
+                    for parsed_chunk in parsed_chunks:
+                        batch.append(parsed_chunk)
+                        batch_token_counter += 1
+
+                    if done_seen:
+                        break
+
+                if batch_token_counter >= batch_size.current_batch_size:
+                    if self.raw_openai_output:
+                        batch = "".join(batch)
+                    yield batch
+                    batch = []
+                    batch_token_counter = 0
+                    batch_size.update()
             if batch:
                 if self.raw_openai_output:
                     batch = "".join(batch)

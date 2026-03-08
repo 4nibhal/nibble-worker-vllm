@@ -868,8 +868,8 @@
         "input": {
           "name": "Raw OpenAI Output",
           "type": "boolean",
-          "description": "Raw OpenAI output instead of just the text",
-          "default": true,
+          "description": "Enable raw SSE passthrough for OpenAI routes. Disable for sanitized JSON chunk aggregation compatible with OpenAI/OpenRouter clients.",
+          "default": false,
           "advanced": true
         }
       },
