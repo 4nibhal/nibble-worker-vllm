@@ -5,8 +5,8 @@ This fork keeps runtime behavior compatible across mixed vLLM versions and RunPo
 ## vLLM AsyncEngineArgs compatibility
 
 - Stable vLLM `0.16.0`: `language_model_only` is not available in `AsyncEngineArgs`.
-- Fork pinned nightly `0.16.1rc1.dev275+ga708ef594`: `language_model_only` is available for Qwen3.5 text-only startup.
-- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.16.1rc1.dev275+ga708ef594`.
+- Fork pinned nightly `0.17.0rc1.dev149+g40077ea3d`: `language_model_only` is available for Qwen3.5 text-only startup.
+- Default image path in this fork uses `VLLM_NIGHTLY=true` with `VLLM_NIGHTLY_VERSION=0.17.0rc1.dev149+g40077ea3d`.
 - Default nightly path pins `transformers` by immutable commit via `TRANSFORMERS_REF=421c7f6248e28d24d84ee000252a1e71fbc24917` and installs from the corresponding GitHub archive tarball.
 - Stable override remains supported via `VLLM_NIGHTLY=false` and `VLLM_VERSION=0.16.0`.
 - Override mechanism: pass `--build-arg TRANSFORMERS_REF=<commit-sha>` (or set bake var `TRANSFORMERS_REF`) when validating a different transformers revision.
